@@ -1,0 +1,131 @@
+<?xml version='1.0' encoding='utf-8'?>
+<scene version="0.5.0">
+	<integrator type="path">
+		<integer name="maxDepth" value="-1"/>
+		<integer name="rrDepth" value="5"/>
+		<boolean name="strictNormals" value="false"/>
+		<boolean name="hideEmitters" value="false"/>
+	</integrator>
+
+	<sensor type="perspective">
+		<float name="fov" value="26.9914665616"/>
+		<string name="fovAxis" value="x"/>
+		<float name="nearClip" value="0.1"/>
+		<transform name="toWorld">
+			<lookat origin="0.0 4.25 -45.0" target="-5.158373421e-15 -0.177128654616 -2.87868449425" up="-1.28010447961e-17 0.994521895368 0.104528463268"/>
+		</transform>
+		<sampler type="independent">
+			<integer name="sampleCount" value="4096"/>
+		</sampler>
+		<film type="ldrfilm">
+			<string name="fileFormat" value="jpeg"/>
+			<string name="pixelFormat" value="rgb"/>
+			<string name="tonemapMethod" value="gamma"/>
+			<float name="gamma" value="-1.0"/>
+			<float name="exposure" value="0.0"/>
+			<float name="key" value="0.180000007153"/>
+			<float name="burn" value="0.0"/>
+			<boolean name="banner" value="false"/>
+			<boolean name="highQualityEdges" value="false"/>
+			<integer name="height" value="540"/>
+			<integer name="width" value="960"/>
+		</film>
+	</sensor>
+
+	<emitter type="sunsky">
+		<float name="turbidity" value="3.0"/>
+		<srgb name="albedo" value="0.15000000596 0.15000000596 0.15000000596"/>
+		<integer name="year" value="2010"/>
+		<integer name="month" value="7"/>
+		<integer name="day" value="10"/>
+		<float name="hour" value="15.0"/>
+		<float name="minute" value="0.0"/>
+		<float name="second" value="0.0"/>
+		<float name="latitude" value="34.0219993591"/>
+		<float name="longitude" value="118.481002808"/>
+		<float name="timezone" value="8.0"/>
+		<float name="stretch" value="1.0"/>
+		<integer name="resolution" value="512"/>
+		<float name="sunScale" value="4.0"/>
+		<float name="skyScale" value="4.0"/>
+		<float name="sunRadiusScale" value="1.0"/>
+	</emitter>
+
+	<bsdf type="twosided" id="MitsubaRoughDiffuseShader1">
+		<bsdf type="roughdiffuse">
+			<srgb name="reflectance" value="0.5 0.5 0.5"/>
+			<float name="alpha" value="0.800000011921"/>
+			<boolean name="useFastApprox" value="false"/>
+		</bsdf>
+	</bsdf>
+
+	<bsdf type="twosided" id="MitsubaConductorShader1">
+		<bsdf type="conductor">
+			<string name="material" value="none"/>
+			<float name="extEta" value="1.0"/>
+			<srgb name="specularReflectance" value="1.0 1.0 1.0"/>
+		</bsdf>
+	</bsdf>
+
+	<bsdf type="twosided" id="MitsubaDiffuseShader1">
+		<bsdf type="diffuse">
+			<srgb name="reflectance" value="0.5 0.5 0.5"/>
+		</bsdf>
+	</bsdf>
+
+	<bsdf type="twosided" id="MitsubaRoughPlasticShader1">
+		<bsdf type="roughplastic">
+			<srgb name="specularReflectance" value="1.0 1.0 1.0"/>
+			<srgb name="diffuseReflectance" value="0.5 0.5 0.5"/>
+			<string name="distribution" value="beckmann"/>
+			<float name="alpha" value="0.20000000298"/>
+			<string name="intIOR" value="polypropylene"/>
+			<string name="extIOR" value="air"/>
+			<boolean name="nonlinear" value="false"/>
+		</bsdf>
+	</bsdf>
+
+	<bsdf type="twosided" id="MitsubaRoughDiffuseShader2">
+		<bsdf type="roughdiffuse">
+			<srgb name="reflectance" value="0.5 0.5 0.5"/>
+			<float name="alpha" value="0.10000000149"/>
+			<boolean name="useFastApprox" value="false"/>
+		</bsdf>
+	</bsdf>
+
+	<shape type="obj">
+		<string name="filename" value="__Geometry__MitsubaSphere__Geometry__Mesh.obj"/>
+		<ref id="MitsubaRoughDiffuseShader1"/>
+	</shape>
+
+	<shape type="obj">
+		<string name="filename" value="__Geometry__MitsubaSphere__Geometry__Mesh1.obj"/>
+		<ref id="MitsubaRoughDiffuseShader1"/>
+	</shape>
+
+	<shape type="obj">
+		<string name="filename" value="__referenceSpheres__chromeSphere.obj"/>
+		<ref id="MitsubaConductorShader1"/>
+	</shape>
+
+	<shape type="obj">
+		<string name="filename" value="__referenceSpheres__diffuseSphere.obj"/>
+		<ref id="MitsubaDiffuseShader1"/>
+	</shape>
+
+	<shape type="obj">
+		<string name="filename" value="__referenceSpheres__glossySphere.obj"/>
+		<ref id="MitsubaRoughPlasticShader1"/>
+	</shape>
+
+	<shape type="obj">
+		<string name="filename" value="__ground.obj"/>
+		<ref id="MitsubaDiffuseShader1"/>
+	</shape>
+
+	<shape type="obj">
+		<string name="filename" value="__materialSphere.obj"/>
+		<ref id="MitsubaRoughDiffuseShader2"/>
+	</shape>
+
+</scene>

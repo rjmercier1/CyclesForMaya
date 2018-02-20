@@ -1,0 +1,34 @@
+Node IDs
+materials	roughplastic.py		0x87000
+materials	thindielectric.py	0x87001
+materials	conductor.py		0x87002
+materials	diffuse.py			0x87003
+volumes		homogeneous.py		0x87005
+materials	plastic.py			0x87006
+materials	roughconductor.py	0x87008
+materials	roughdielectric.py	0x87009
+materials	roughdiffuse.py		0x8700A
+materials	phong.py			0x8700B
+materials	ward.py				0x8700C
+materials	difftrans.py		0x8700D
+materials	coating.py			0x8700E
+materials	roughcoating.py		0x8700F
+
+materials	bump.py				0x87010
+materials	mixturebsdf.py		0x87011
+materials	twosided.py			0x87013
+materials	blendbsdf.py		0x87014
+materials	hk.py				0x87015
+materials	dipole.py			0x87016
+materials	heterogenous.py		0x87017
+
+materials	irawan.py			0x87020
+renderer	MitsubaRenderSettings.py	0x87021
+lights		arealight.py		0x87024
+
+lights		sunsky.py			0x87031
+lights		envmap.py			0x87032
+volumes		volume.py			0x87033
+
+materials	dielectric.py		0x87034
+materials	mask.py				0x87035

@@ -1,0 +1,196 @@
+x make work multi-platform: on mac, linux and windows
+x allow user to select mitsuba binary
+x make it possible to persist render settings
+x integrate plugins, shaders into python package
+x get result of call
+x print output from render
+x replace os.system with process class
+x allow user to retain intermediate files (.obj, .xml)
+x force objexport to load
+
+x support animatable, rotating environment maps
+x support animated textures
+x support area lights
+x fix compute method for all materials - if plug == sunsky.mOutColor
+
+x branch git repo
+x rename windows_64 to plug-ins
+x remove materials.py, render.py, scriptEditor.py, tempo.py, test.mel, test2.py, champagne.ma
+
+x support colored area lights
+x change render working directory to output image directory. keep only one log.
+
+x support general cameras, not just camera, aim, up combinations
+
+x move materials into 'materials'
+x add __init__.py as appropriate
+x support batch / animated renders
+
+x hookup verbose render setting
+
+x remove dependence on UI to drive render parameters
+x add support for persisting render settings
+ x filters
+ x samplers
+ x integrators - Path Tracer
+ x The rest of the integrators
+
+x add support for more light types - point, spot
+x add support for more sensor types
+ x orthographic
+
+x centralize / standardize xml writing
+
+x add support for more sensor types
+ x spherical, telecentric, radiancemeter, fluencemeter, perspective_rdist
+
+x add support for more film types
+ x hdr, ldr, tiled, math
+
+x add support for meta-integrators
+ x adaptive, irrcache
+
+x add support for multi-channel rendering, with supported integrators
+ x ao, direct, path, volpath, volpath_simple, and irrcache.
+
+x add support for meta-integrator parameters
+ x adaptive, irrcache
+
+x add support for film parameters
+
+x support animated parameters in batch mode
+ x added MAYA_RELEASE_PYTHON_GIL = 1 to Maya.env
+
+x expand support for predefined 'conductor' materials
+x clean up materials
+ x diffuse, roughdiffuse, 
+ x dielectric, thindielectric, roughdielectric
+ x conductor, roughconductor, 
+ x plastic, roughplastic
+ x phong, ward
+ x diffuse transmitter
+ x irawan
+ x twosided
+ x coating
+ x roughcoating
+ x mixturebsdf
+ x blendbsdf
+ x mask
+ x bump
+ x hk - uses phase functions
+ x dipole
+ x homogeneous
+ x heterogeneous
+
+x Support all surface scattering models
+x Support all subsurface scattering models
+x Support combination of surface and medium scattering models
+
+x make plugin ids consistent
+
+x indent code to 4 space tabs
+
+x replace all mel functions with automatically generated mel which immediately calls back into Python
+
+fixes based to use:
+x eliminate duplicate geometry export
+x replace illegal characters in exported geometry file names
+x fixed broken texture element creation
+x made all geometry references use the full dag path name
+
+x respect visibility of lights
+x handle object visibility better, i.e. look at visibility of parents
+x fixed dipole sigma A, S, T and Albedo export types
+x made light irradiance values linear (rgb, instead of srgb)
+
+x add support for crop coordinates (pulled from general render settings or render view selection rectangle)
+
+x add support for block size (-b), partial image output (-r) and thread count (-p) command line parameters
+x show partially complete images
+
+x use pre-generated mip-maps if they exist
+ x already handled by mitsuba
+
+x make sure render logs are printed as render happens, i.e. don't block
+
+x simplify IO code with wrapper functions and classes
+
+example scenes for materials
+ x diffuse, roughdiffuse, 
+ x dielectric, / thindielectric, roughdielectric
+ x conductor, roughconductor, 
+ x plastic, roughplastic
+ x phong, ward
+ x diffuse transmitter
+ / irawan
+ x twosided
+ x coating, roughcoating
+ x mixturebsdf
+ x blendbsdf
+ mask
+ bump
+ x hk - uses phase functions
+ x dipole
+ x homogeneous
+ heterogeneous
+
+add support for ensureEnergyConservation boolean on BSDFs
+	http://www.mitsuba-renderer.org/api/classmitsuba_1_1_b_s_d_f.html
+
+/ allow dipole sss to be used in mixture and blended bsdfs
+
+support render cancel
+support batch render cancel
+support interactive render view / update / cancel
+
+create renderData/mitsuba directory for temporary render files
+
+
+figure out if you can load multichannel exrs into the Maya Render View
+add support for metadata and label annotations with ldrfilm and hdrfilm
+standardize callbacks used in UI
+
+organize UI
+- connect activation of multichannel and metaintegrators to choice of base integrator
+
+add support for writing lightmaps using irradiancemeter sensor type
+- need workflow design
+
+replace xml writing with etree
+
+
+
+
+Notes / references
+
+
+http://knowledge.autodesk.com/support/maya/troubleshooting/caas/sfdcarticles/sfdcarticles/Registering-a-custom-renderer-for-batch-rendering.html
+
+http://help.autodesk.com/view/MAYAUL/2016/ENU/
+
+https://github.com/haggi/OpenMaya/blob/master/src/common/python/Renderer/__init__.py
+
+
+Location to copy .mod and .xml files
+- Is there a better place, i.e. in /Users/Shared/Autodesk/.... ?
+/Applications/Autodesk/maya2016/Maya.app/Contents/modules/
+/Applications/Autodesk/maya2016/Maya.app/Contents/bin/rendererDesc/
+
+
+Notes on usage
+- Energyredistributionpathtracing, maxChains is noted as a float attribute in the documentation but the implementation expects an integer
+- Energyredistributionpathtracing seems to render, with continuous "Unable to recreate specular vertex in perturbation" errors
+- Progressive Photon Map crashes
+- The roughdiffuse bsdf alpha parameter is described as a 'spectrum or texture' but plugin expects a float
+- What material does the 'Bk7' IOR correspond to?
+- Kajia-Kay phase function produces NaNs when used with the HK surface shader
+- Energy conservation check seem to be for values >= to 1 rather than > 1
+- "violates energy conservation! The parameter "opacity" has a component-wise maximum of 1 (which is > 1!) and will therefore be scaled by 0.99 to prevent issues. Specify the parameter ensureEnergyConservation=false to the BSDF to prevent this from happening.
+"
+
+
+
+
+
+
+
