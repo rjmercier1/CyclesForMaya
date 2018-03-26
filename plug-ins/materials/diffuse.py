@@ -2,16 +2,17 @@ import sys
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
 
-kPluginNodeName = "MitsubaDiffuseShader"
+kPluginNodeName = "CyclesDiffuseShader"
 kPluginNodeClassify = "shader/surface"
 kPluginNodeId = OpenMaya.MTypeId(0x87003)
 
 class diffuse(OpenMayaMPx.MPxNode):
     def __init__(self):
         OpenMayaMPx.MPxNode.__init__(self)
+        mDiffuse = OpenMaya.MObject()
+        mRoughness = OpenMaya.MObject()
+        
         mOutColor = OpenMaya.MObject()
-        mReflectance = OpenMaya.MObject()
-        mTwoSided = OpenMaya.MObject()
 
     def compute(self, plug, block):
         if plug == diffuse.mOutColor:
@@ -32,18 +33,18 @@ def nodeInitializer():
     nAttr = OpenMaya.MFnNumericAttribute()
 
     try:
-        diffuse.mTwoSided = nAttr.create("twosided", "tw", OpenMaya.MFnNumericData.kBoolean, True)
-        nAttr.setKeyable(1) 
+        diffuse.mDiffuse = nAttr.createColor("color", "dr")
+        nAttr.setKeyable(1)
         nAttr.setStorable(1)
         nAttr.setReadable(1)
         nAttr.setWritable(1)
-
-        diffuse.mReflectance = nAttr.createColor("reflectance", "r")
-        nAttr.setKeyable(1) 
+        nAttr.setDefault(0.7, 0.5, 0.3)
+        
+        diffuse.mRoughness = nAttr.create("roughness","drf", OpenMaya.MFnNumericData.kFloat, 0.0)
+        nAttr.setKeyable(1)
         nAttr.setStorable(1)
         nAttr.setReadable(1)
         nAttr.setWritable(1)
-        nAttr.setDefault(0.5,0.5,0.5)
 
         diffuse.mOutColor = nAttr.createColor("outColor", "oc")
         nAttr.setStorable(0)
@@ -56,18 +57,18 @@ def nodeInitializer():
         raise
 
     try:
-        diffuse.addAttribute(diffuse.mTwoSided)
-        diffuse.addAttribute(diffuse.mReflectance)
+        diffuse.addAttribute(diffuse.mDiffuse)
+        diffuse.addAttribute(diffuse.mRoughness)
         diffuse.addAttribute(diffuse.mOutColor)
     except:
         sys.stderr.write("Failed to add attributes\n")
         raise
 
-    try:
-        diffuse.attributeAffects (diffuse.mReflectance, diffuse.mOutColor)
-    except:
-        sys.stderr.write("Failed in setting attributeAffects\n")
-        raise
+    #try:
+    #    diffuse.attributeAffects (diffuse.mReflectance, diffuse.mOutColor)
+    #except:
+    #    sys.stderr.write("Failed in setting attributeAffects\n")
+    #    raise
 
 
 # initialize the script plug-in
@@ -82,7 +83,7 @@ def initializePlugin(mobject):
 
 # uninitialize the script plug-in
 def uninitializePlugin(mobject):
-    mplugin = OpenMayaMPx.MFnPlugin(mobject)
+    mplugin = OpenMayaMPx.MFnPlugin(mobject, "Cycles")
     try:
         mplugin.deregisterNode( kPluginNodeId )
     except:

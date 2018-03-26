@@ -10,7 +10,7 @@ import maya.mel as mel
 
 ##################################################
 
-from MitsubaRenderer import createRenderSettingsNode, getRenderSettingsNode
+from CyclesRenderer import createRenderSettingsNode, getRenderSettingsNode
 
 global renderSettings
 
@@ -991,7 +991,9 @@ def createSensorOverrideFrames():
 def getRenderSettingsPath(name, renderSettingsAttribute=None):
     global renderSettings
 
+
     path = cmds.fileDialog2(fileMode=1, fileFilter="*")
+    print "CHANGE: ", renderSettings, path
     if path not in [None, []]:
         strPath = str(path[0])
         cmds.textFieldButtonGrp(name, e=1, text=strPath)
@@ -1051,7 +1053,7 @@ def createRenderSettingsUI():
     global rfilterMenu
     global sensorOverrideMenu
 
-    print( "\n\n\nMitsuba Render Settings - Create UI - Python\n\n\n" )
+    print( "\n\n\nCycles Render Settings - Create UI - Python\n\n\n" )
 
     parentForm = cmds.setParent(query=True)
 
@@ -1059,12 +1061,12 @@ def createRenderSettingsUI():
     cmds.columnLayout(adjustableColumn=True)
 
     # Path to executable
-    mitsubaPathGroup = cmds.textFieldButtonGrp(label="Mitsuba Path", 
+    mitsubaPathGroup = cmds.textFieldButtonGrp(label="Cycles Path", 
         buttonLabel="Open", buttonCommand="browseFiles")
     # Get default
-    existingMitsubaPath = cmds.getAttr( "%s.%s" % (renderSettings, "mitsubaPath"))
-    if existingMitsubaPath not in ["", None]:
-        cmds.textFieldButtonGrp(mitsubaPathGroup, e=1, text=existingMitsubaPath)
+    existingCyclesPath = cmds.getAttr( "%s.%s" % (renderSettings, "mitsubaPath"))
+    if existingCyclesPath not in ["", None]:
+        cmds.textFieldButtonGrp(mitsubaPathGroup, e=1, text=existingCyclesPath)
     cmds.textFieldButtonGrp(mitsubaPathGroup, e=1, 
         buttonCommand=lambda: getRenderSettingsPath(mitsubaPathGroup, "mitsubaPath"))
 
@@ -1246,7 +1248,7 @@ def createRenderSettingsUI():
         cmds.optionMenu(sensorOverrideMenu, edit=True, value=existingSensorOverride)
         sensorOverride = existingSensorOverride
     else:
-        cmds.optionMenu(sensorOverrideMenu, edit=True, select=1)
+        cmds.optionMenu(samplerMenu, edit=True, select=1)
         sensorOverride = "None"
 
     changeSensorOverride(sensorOverride)
@@ -1355,7 +1357,7 @@ def createRenderWindow():
     global renderWindow
     global renderedImage
 
-    renderWindow = cmds.window("Mitsuba Rendered Image", retain=True, resizeToFitChildren=True)
+    renderWindow = cmds.window("Cycles Rendered Image", retain=True, resizeToFitChildren=True)
     cmds.paneLayout()
     renderedImage = cmds.image()
 
@@ -1390,8 +1392,8 @@ def showRenderWindow(filename):
     cmds.showWindow(renderWindow)
     cmds.renderWindowEditor()
 
-#Mel command to render with Mitsuba
-def callMitsuba(self):
+#Mel command to render with Cycles
+def callCycles(self):
     cmds.mitsuba()
 
 '''

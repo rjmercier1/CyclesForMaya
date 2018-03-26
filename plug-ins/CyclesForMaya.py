@@ -8,7 +8,7 @@ import maya.mel as mel
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
 
-kPluginName = "MitsubaForMaya"
+kPluginName = "CyclesForMaya"
 
 pluginDir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 sys.path.append(pluginDir)
@@ -16,32 +16,34 @@ sys.path.append(os.path.join(pluginDir, "renderer"))
 
 # Import modules for renderer, settings, material, lights and volumes
 from renderer import (
-    MitsubaRenderSettings,
-    MitsubaRenderer)
+    CyclesRenderSettings,
+    CyclesRenderer)
 
 from materials import (
-    bump,
-    blendbsdf,
-    coating,
-    conductor,
-    dielectric,
-    difftrans,
+#    bump,
+#    blendbsdf,
+#    coating,
+#    conductor,
+#    dielectric,
+#    difftrans,
     diffuse,
-    mask,
+#    mask,
     mixturebsdf,
-    phong,
-    plastic,
-    roughcoating,
-    roughconductor,
-    roughdielectric,
-    roughdiffuse,
-    roughplastic,
-    thindielectric,
-    twosided,
-    ward,
-    irawan,
-    hk,
-    dipole)
+    glossy,
+#    plastic,
+#    roughcoating,
+#    roughconductor,
+#    roughdielectric,
+#    roughdiffuse,
+#    roughplastic,
+    subsurface,
+#    thindielectric,
+#    twosided,
+#    ward,
+#    irawan,
+#    hk,
+#    dipole
+    )
 
 from lights import (
     envmap,
@@ -57,35 +59,36 @@ global generalNodeModules
 global materialNodeModules
 
 rendererModules = [
-    MitsubaRenderer]
+    CyclesRenderer]
 
 generalNodeModules = [
-    MitsubaRenderSettings]
+    CyclesRenderSettings]
 
 materialNodeModules = [
     # materials
-    bump,
-    blendbsdf,
-    coating,
-    conductor,
-    dielectric,
-    difftrans,
+#    bump,
+#    blendbsdf,
+#    coating,
+#    conductor,
+#    dielectric,
+#    difftrans,
     diffuse,
-    mask,
+#    mask,
     mixturebsdf,
-    phong,
-    plastic,
-    roughcoating,
-    roughconductor,
-    roughdielectric,
-    roughdiffuse,
-    roughplastic,
-    thindielectric,
-    twosided,
-    ward,
-    irawan,
-    hk,
-    dipole,
+    glossy,
+#    plastic,
+#    roughcoating,
+#    roughconductor,
+#    roughdielectric,
+#    roughdiffuse,
+#    roughplastic,
+    subsurface,
+#    thindielectric,
+#    twosided,
+#    ward,
+#    irawan,
+#    hk,
+#    dipole,
     # lights
     envmap,
     sunsky,
@@ -106,17 +109,8 @@ def initializePlugin(mobject):
     try:
         if not cmds.pluginInfo( "objExport", query=True, loaded=True ):
             cmds.loadPlugin( "objExport" )
-        print( "%s - Loaded plugin       : %s" % (kPluginName, 'objExport'))
     except:
             sys.stderr.write( "Failed to load objExport plugin\n" )
-            raise
-
-    try:
-        if not cmds.pluginInfo( "OpenEXRLoader", query=True, loaded=True ):
-            cmds.loadPlugin( "OpenEXRLoader" )
-        print( "%s - Loaded plugin       : %s" % (kPluginName, 'OpenEXRLoader'))
-    except:
-            sys.stderr.write( "Failed to load OpenEXRLoader plugin\n" )
             raise
 
     # Register general nodes
@@ -142,7 +136,7 @@ def initializePlugin(mobject):
                 OpenMayaMPx.MPxNode.kDependNode, 
                 materialNodeModule.kPluginNodeClassify )
 
-            MitsubaRenderer.registMaterialNodeType(materialNodeModule.kPluginNodeName)
+            CyclesRenderer.registMaterialNodeType(materialNodeModule.kPluginNodeName)
 
             print( "%s - Registered material : %s" % (kPluginName, materialNodeModule.kPluginNodeName) )
     except:

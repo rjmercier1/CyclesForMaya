@@ -70,23 +70,27 @@ def writeElement(outFile, element, depth=0):
 # Returns the surfaceShader node for a piece of geometry (geom)
 def getSurfaceShader(geom):
     shapeNode = cmds.listRelatives(geom, children=True, shapes=True, fullPath=True)[0]
-    sg = cmds.listConnections(shapeNode, type="shadingEngine")[0]
-    shader = cmds.listConnections(sg+".surfaceShader")
-    #if shader is None:
-    #    shader = cmds.listConnections(sg+".volumeShader")
-    if shader:
-        shader = shader[0]
-    return shader
+    sg = cmds.listConnections(shapeNode, type="shadingEngine")
+    if sg:
+        shader = cmds.listConnections(sg[0]+".surfaceShader")
+        #if shader is None:
+        #    shader = cmds.listConnections(sg+".volumeShader")
+        if shader:
+            shader = shader[0]
+        return shader
+    return None
 
 def getVolumeShader(geom):
     shapeNode = cmds.listRelatives(geom, children=True, shapes=True, fullPath=True)[0]
-    sg = cmds.listConnections(shapeNode, type="shadingEngine")[0]
-    shader = cmds.listConnections(sg+".volumeShader")
-    if shader:
-        shader = shader[0]
-    return shader
+    sg = cmds.listConnections(shapeNode, type="shadingEngine")
+    if sg:
+        shader = cmds.listConnections(sg[0]+".volumeShader")
+        if shader:
+            shader = shader[0]
+        return shader
+    return None
 
-def listToMitsubaText(list):
+def listToCyclesText(list):
     return " ".join( map(str, list) )
 
 def booleanToMisubaText(b):
@@ -122,6 +126,10 @@ class SceneElement(dict):
     def addAttribute(self, key, value):
         self.attributes[key] = value
 
+    def addAttributes(self, keyValueDict):
+        if isinstance(keyValueDict, dict):
+            self.attributes.update(keyValueDict)
+
     def removeAttribute(self, key):
         if key in self.attributes:
             del( self.attributes[key] )         
@@ -151,7 +159,7 @@ def StringParameter(name, value):
     return SceneElement('string', {'name':name, 'value':str(value)} )
 
 def ColorParameter(name, value, colorspace='srgb'):
-    return SceneElement(colorspace, {'name':name, 'value':listToMitsubaText(value)} )
+    return SceneElement(colorspace, {'name':name, 'value':listToCyclesText(value)} )
 
 def SpectrumParameter(name, value):
     return SceneElement('spectrum', {'name':name, 'value':str(value)} )
@@ -160,14 +168,14 @@ def RotateElement(axis, angle):
     return SceneElement('rotate', { axis:str(1), 'angle':str(angle) } )
 
 def TranslateElement(x, y, z):
-    return SceneElement('translate', { 'x':str(x), 'y':str(y), 'z':str(z) } )
+    return SceneElement('translate', { axis:str(1), 'angle':str(angle) } )
 
 def Scale2Element(x, y):
     return SceneElement('scale', { 'x':x, 'y':y } )
 
 def LookAtElement(aim, origin, up):
-    return SceneElement('lookat', { 'target':listToMitsubaText(aim), 
-        'origin':listToMitsubaText(origin), 'up':listToMitsubaText(up) } )
+    return SceneElement('lookat', { 'target':listToCyclesText(aim), 
+        'origin':listToCyclesText(origin), 'up':listToCyclesText(up) } )
 
 def createSceneElement(typeAttribute=None, id=None, elementType='scene'):
     element = SceneElement(elementType)
@@ -647,25 +655,72 @@ def writeShaderDiffuseTransmitter(material, materialName):
 
     return bsdfElement
 
+def createConnectionElement(from_spec, to_spec):
+    connectElement = createSceneElement(elementType = 'connect')
+    connectElement.addAttribute('from', from_spec)
+    connectElement.addAttribute('to', to_spec)
+    return connectElement
+
+def createTextureElement(sourceNode):
+    filePath = cmds.getAttr(sourceNode+".fileTextureName")
+    textureElement = createSceneElement(elementType = 'image_texture')
+    textureElement.addAttribute('filename', filePath)
+    textureElement.addAttribute('name', sourceNode)
+    return textureElement
+
+def checkSetColorAttribute(bsdf_element, mayaAttrName, cyclesAttrName):
+
+    local_elements = []
+    if cmds.connectionInfo(mayaAttrName, isDestination=True):
+        sourcePlug = cmds.connectionInfo(mayaAttrName, sourceFromDestination=True)
+        sourceNode, sourceAttribute = sourcePlug.split(".")
+        if cmds.nodeType(sourceNode)=="file":
+            textureElement = createTextureElement(sourceNode)
+            connectElement = createConnectionElement('{0} color'.format(sourceNode), "{0} {1}".format(bsdf_element.getAttribute("name"), cyclesAttrName))
+            local_elements.append(textureElement)
+            local_elements.append(connectElement)
+    else:
+        color = cmds.getAttr(mayaAttrName)
+        if color:
+            color = color[0]
+            bsdf_element.addAttribute(cyclesAttrName, "{0} {1} {2}".format(color[0], color[1], color[2]))
+
+    return local_elements
+
 def writeShaderDiffuse(material, materialName):
-    bsdfElement = BSDFElement('diffuse', materialName)
-    bsdfElement.addChild( TexturedColorAttributeElement(material, "reflectance") )
+    shaderDict = createSceneElement(elementType = 'shader')
+    shaderDict.addAttribute('name', "{0}".format(materialName))
 
-    return bsdfElement
+    bsdfElement = createSceneElement(elementType = 'diffuse_bsdf')
+    bsdfElement.addAttribute('name', "{0}_closure".format(materialName))
+    shaderDict.addChild(bsdfElement)
 
-def writeShaderPhong(material, materialName):
-    exponent = cmds.getAttr(material+".exponent")
-    specularReflectance = cmds.getAttr(material+".specularReflectance")
-    diffuseReflectance = cmds.getAttr(material+".diffuseReflectance")
+    elems = checkSetColorAttribute(bsdfElement, material+".diffuseReflectance", "color")
+    shaderDict.addChildren(elems)
 
-    # Create a structure to be written
-    bsdfElement = BSDFElement('phong', materialName)
+    connectElement = createConnectionElement('{0} bsdf'.format(bsdfElement.getAttribute("name")), "output surface")
+    shaderDict.addChild(connectElement)
 
-    bsdfElement.addChild( TexturedFloatAttributeElement(material, "exponent")  )
-    bsdfElement.addChild( TexturedColorAttributeElement(material, "diffuseReflectance") )
-    bsdfElement.addChild( TexturedColorAttributeElement(material, "specularReflectance") )
+    return shaderDict
 
-    return bsdfElement
+def writeShaderGlossy(material, materialName):
+    shaderDict = createSceneElement(elementType = 'shader')
+    shaderDict.addAttribute('name', "{0}".format(materialName))
+
+    bsdfElement = createSceneElement(elementType = 'glossy_bsdf')
+    bsdfElement.addAttribute('name', "{0}_closure".format(materialName))
+    roughness = cmds.getAttr("{0}.roughness".format(material))
+    bsdfElement.addAttribute('roughness', str(roughness))
+
+    shaderDict.addChild(bsdfElement)
+
+    elems = checkSetColorAttribute(bsdfElement, material+".diffuseReflectance", "color")
+    shaderDict.addChildren(elems)
+
+    connectElement = createConnectionElement('{0} bsdf'.format(bsdfElement.getAttribute("name")), "output surface")
+    shaderDict.addChild(connectElement)
+
+    return shaderDict
 
 def writeShaderPlastic(material, materialName):
     bsdfElement = BSDFElement('plastic', materialName)
@@ -969,36 +1024,13 @@ def writeShaderTwoSided(material, materialName):
     return bsdfElement
 
 def writeShaderMixture(material, materialName):
-    bsdfElement = BSDFElement('mixturebsdf', materialName)
+    shaderElement = createSceneElement(elementType = 'mix_closure')
+    color1 = cmds.getAttr(material+".bsdf1")
+    color2 = cmds.getAttr(material+".bsdf2")
+    factor = cmds.getAttr(material+".weight1")
+    print 'MIX', color1, color2, factor
 
-    weight1 = cmds.getAttr(material+".weight1")
-    weight2 = cmds.getAttr(material+".weight2")
-    weight3 = cmds.getAttr(material+".weight3")
-    weight4 = cmds.getAttr(material+".weight4")
-
-    weights = [weight1, weight2, weight3, weight4]
-    weights = [x for x in weights if x != 0]
-    weightString = ", ".join(map(str, weights))
-
-    if weight1 > 0.0:
-        bsdf1Element = NestedBSDFElement(material, "bsdf1")
-        bsdfElement.addChild( bsdf1Element )
-
-    if weight2 > 0.0:
-        bsdf2Element = NestedBSDFElement(material, "bsdf2")
-        bsdfElement.addChild( bsdf2Element )
-
-    if weight3 > 0.0:
-        bsdf3Element = NestedBSDFElement(material, "bsdf3")
-        bsdfElement.addChild( bsdf3Element )
-
-    if weight4 > 0.0:
-        bsdf4Element = NestedBSDFElement(material, "bsdf4")
-        bsdfElement.addChild( bsdf4Element )
-
-    bsdfElement.addChild( StringParameter('weights', weightString) )
-
-    return bsdfElement
+    return shaderElement
 
 def writeShaderBlend(material, materialName):
     bsdfElement = BSDFElement('blendbsdf', materialName)
@@ -1145,37 +1177,37 @@ def addTwoSided(material, materialElement):
     return elementDict
 
 #
-#Write a surface material (material) to a Mitsuba scene file (outFile)
+#Write a surface material (material) to a Cycles scene file (outFile)
 #
 def writeShader(material, materialName):
     matType = cmds.nodeType(material)
     
     mayaMaterialTypeToShaderFunction = {
-        "MitsubaSmoothCoatingShader" : writeShaderSmoothCoating,
-        "MitsubaConductorShader" : writeShaderConductor,
-        "MitsubaDielectricShader" : writeShaderDielectric,
-        "MitsubaDiffuseTransmitterShader" : writeShaderDiffuseTransmitter,
-        "MitsubaDiffuseShader" : writeShaderDiffuse,
-        "MitsubaPhongShader" : writeShaderPhong,
-        "MitsubaPlasticShader" : writeShaderPlastic,
-        "MitsubaRoughCoatingShader" : writeShaderRoughCoating,
-        "MitsubaRoughConductorShader" : writeShaderRoughConductor,
-        "MitsubaRoughDielectricShader" : writeShaderRoughDielectric,
-        "MitsubaRoughDiffuseShader" : writeShaderRoughDiffuse,
-        "MitsubaRoughPlasticShader" : writeShaderRoughPlastic,
-        "MitsubaThinDielectricShader" : writeShaderThinDielectric,
-        "MitsubaWardShader" : writeShaderWard,
-        "MitsubaIrawanShader" : writeShaderIrawan,
-        "MitsubaObjectAreaLightShader" : writeShaderObjectAreaLight,
-        "MitsubaTwoSidedShader" : writeShaderTwoSided,
-        "MitsubaMixtureShader" : writeShaderMixture,
-        "MitsubaBlendShader" : writeShaderBlend,
-        "MitsubaMaskShader" : writeShaderMask,
-        "MitsubaBumpShader" : writeShaderBump,
-        "MitsubaHKShader" : writeShaderHK,
-        "MitsubaHomogeneousParticipatingMedium" : writeMediumHomogeneous,
-        "MitsubaHeterogeneousParticipatingMedium" : writeMediumHeterogeneous,
-        "MitsubaSSSDipoleShader" : writeShaderDipoleSSS,
+        "CyclesSmoothCoatingShader" : writeShaderSmoothCoating,
+        "CyclesConductorShader" : writeShaderConductor,
+        "CyclesDielectricShader" : writeShaderDielectric,
+        "CyclesDiffuseTransmitterShader" : writeShaderDiffuseTransmitter,
+        "CyclesDiffuseShader" : writeShaderDiffuse,
+        "CyclesGlossyShader" : writeShaderGlossy,
+        "CyclesPlasticShader" : writeShaderPlastic,
+        "CyclesRoughCoatingShader" : writeShaderRoughCoating,
+        "CyclesRoughConductorShader" : writeShaderRoughConductor,
+        "CyclesRoughDielectricShader" : writeShaderRoughDielectric,
+        "CyclesRoughDiffuseShader" : writeShaderRoughDiffuse,
+        "CyclesRoughPlasticShader" : writeShaderRoughPlastic,
+        "CyclesThinDielectricShader" : writeShaderThinDielectric,
+        "CyclesWardShader" : writeShaderWard,
+        "CyclesIrawanShader" : writeShaderIrawan,
+        "CyclesObjectAreaLightShader" : writeShaderObjectAreaLight,
+        "CyclesTwoSidedShader" : writeShaderTwoSided,
+        "CyclesMixtureShader" : writeShaderMixture,
+        "CyclesBlendShader" : writeShaderBlend,
+        "CyclesMaskShader" : writeShaderMask,
+        "CyclesBumpShader" : writeShaderBump,
+        "CyclesHKShader" : writeShaderHK,
+        "CyclesHomogeneousParticipatingMedium" : writeMediumHomogeneous,
+        "CyclesHeterogeneousParticipatingMedium" : writeMediumHeterogeneous,
+        "CyclesSSSDipoleShader" : writeShaderDipoleSSS,
     }
 
     if matType in mayaMaterialTypeToShaderFunction:
@@ -1193,16 +1225,96 @@ def writeShader(material, materialName):
 
     return shaderElement
 
+outputSocketNames = {'CyclesMixtureShader': 'closure',
+                     'CyclesDiffuseShader': 'bsdf',
+                     'CyclesSubsurfaceShader': 'bssrdf',
+                     'CyclesGlossyShader': 'bsdf',
+                     'file': 'color'}
+
+def evaluateShaderTreeCycles(materialNode):
+    childElements = []
+
+    if materialNode.type() != "file":
+        for attr in materialNode.listAttr():
+            if attr.isConnected() and attr.isDestination():
+                conns = attr.listConnections(c=True, p=True)
+                for dst, src in conns:
+                    srcNodeName, srcPlugName = src.split(".")
+                    srcNode = pymel.core.PyNode(srcNodeName)
+                    elems = evaluateShaderTreeCycles(srcNode)
+                    childElements.extend(elems)
+
+                    srcNodeType = cmds.nodeType(srcNodeName)
+                    cyclesSocketType = outputSocketNames.get(srcNodeType, "color")
+                    connectElement = createConnectionElement("{0} {1}".format(srcNodeName, cyclesSocketType),
+                                                          "{0} {1}".format(materialNode.name(), attr.name(includeNode=False)))
+
+                    childElements.append(connectElement)
+
+    shaderElement = None
+    if materialNode.type() == "CyclesMixtureShader":
+        shaderElement = createSceneElement(elementType='mix_closure')
+        mixFactor = materialNode.getAttr("fac")
+        shaderElement.addAttribute("fac", str(mixFactor))
+    elif materialNode.type() == "CyclesDiffuseShader":
+        shaderElement = createSceneElement(elementType='diffuse_bsdf')
+        if not materialNode.attr("color").isConnected():
+            clr = materialNode.getAttr("color")
+            shaderElement.addAttribute("color", "{0} {1} {2}".format(clr[0], clr[1], clr[2]))
+    elif materialNode.type() == "CyclesSubsurfaceShader":
+        shaderElement = createSceneElement(elementType='subsurface_scattering')
+        if not materialNode.attr("color").isConnected():
+            clr = materialNode.getAttr("color")
+            shaderElement.addAttribute("color", "{0} {1} {2}".format(clr[0], clr[1], clr[2]))
+            clr = materialNode.getAttr("radius")
+            shaderElement.addAttribute("radius", "{0} {1} {2}".format(clr[0], clr[1], clr[2]))
+            s = materialNode.getAttr("scale")
+            shaderElement.addAttribute("scale", "{0}".format(s))
+    elif materialNode.type() == "CyclesGlossyShader":
+        shaderElement = createSceneElement(elementType='glossy_bsdf')
+        if not materialNode.attr("color").isConnected():
+            clr = materialNode.getAttr("color")
+            shaderElement.addAttribute("color", "{0} {1} {2}".format(clr[0], clr[1], clr[2]))
+    elif materialNode.type() == "file":
+        shaderElement = createSceneElement(elementType='image_texture')
+        fileTexture = materialNode.getAttr("fileTextureName")
+        shaderElement.addAttribute("filename", fileTexture)
+
+    myElements = list()
+    if shaderElement:
+        shaderElement.addAttribute('name', materialNode.name())
+        myElements.append(shaderElement)
+        myElements.extend(childElements)
+
+    return myElements
+
+def writeShaderCycles(material, materialName):
+    node = pymel.core.PyNode(materialName)
+    childElements = evaluateShaderTreeCycles(node)
+
+    shaderElement = None
+
+    if childElements:
+        shaderElement = createSceneElement(elementType='shader')
+        shaderElement.addAttribute("name", "{0}_shader".format(materialName))
+
+        shaderElement.addChildren(childElements)
+        materialOutputSocketName = outputSocketNames.get(cmds.nodeType(materialName), "color")
+        connectElement = createConnectionElement("{0} {1}".format(childElements[0].getAttribute("name"), materialOutputSocketName), "output surface")
+        shaderElement.addChild(connectElement)
+
+    return shaderElement
+
 #
 #Write the appropriate integrator
 #
-def writeIntegratorPathTracer(renderSettings, integratorMitsuba):
+def writeIntegratorPathTracer(renderSettings, integratorCycles):
     attrPrefixes = { 
         "path" : "", 
         "volpath" : "Volumetric", 
         "volpath_simple" : "SimpleVolumetric"
     }
-    attrPrefix = attrPrefixes[integratorMitsuba]
+    attrPrefix = attrPrefixes[integratorCycles]
 
     # Get values from the scene
     iPathTracerUseInfiniteDepth = cmds.getAttr("%s.%s" % (renderSettings, "i%sPathTracerUseInfiniteDepth" % attrPrefix))
@@ -1214,7 +1326,7 @@ def writeIntegratorPathTracer(renderSettings, integratorMitsuba):
     iPathTracerMaxDepth = -1 if iPathTracerUseInfiniteDepth else iPathTracerMaxDepth
 
     # Create a structure to be written
-    element = IntegratorElement(integratorMitsuba)
+    element = IntegratorElement(integratorCycles)
 
     element.addChild( IntegerParameter('maxDepth', iPathTracerMaxDepth)  )
     element.addChild( IntegerParameter('rrDepth', iPathTracerRRDepth)  )
@@ -1223,7 +1335,7 @@ def writeIntegratorPathTracer(renderSettings, integratorMitsuba):
 
     return element
 
-def writeIntegratorBidirectionalPathTracer(renderSettings, integratorMitsuba):
+def writeIntegratorBidirectionalPathTracer(renderSettings, integratorCycles):
     # Get values from the scene
     iBidrectionalPathTracerUseInfiniteDepth = cmds.getAttr("%s.%s" % (renderSettings, "iBidrectionalPathTracerUseInfiniteDepth"))
     iBidrectionalPathTracerMaxDepth = cmds.getAttr("%s.%s" % (renderSettings, "iBidrectionalPathTracerMaxDepth"))
@@ -1234,7 +1346,7 @@ def writeIntegratorBidirectionalPathTracer(renderSettings, integratorMitsuba):
     iBidrectionalPathTracerMaxDepth = -1 if iBidrectionalPathTracerUseInfiniteDepth else iBidrectionalPathTracerMaxDepth
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( IntegerParameter('maxDepth', iBidrectionalPathTracerMaxDepth) )
     elementDict.addChild( IntegerParameter('rrDepth', iBidrectionalPathTracerRRDepth) )
@@ -1244,7 +1356,7 @@ def writeIntegratorBidirectionalPathTracer(renderSettings, integratorMitsuba):
     return elementDict
 
 
-def writeIntegratorAmbientOcclusion(renderSettings, integratorMitsuba):
+def writeIntegratorAmbientOcclusion(renderSettings, integratorCycles):
     # Get values from the scene
     iAmbientOcclusionShadingSamples = cmds.getAttr("%s.%s" % (renderSettings, "iAmbientOcclusionShadingSamples"))
     iAmbientOcclusionUseAutomaticRayLength = cmds.getAttr("%s.%s" % (renderSettings, "iAmbientOcclusionUseAutomaticRayLength"))
@@ -1253,7 +1365,7 @@ def writeIntegratorAmbientOcclusion(renderSettings, integratorMitsuba):
     iAmbientOcclusionRayLength = -1 if iAmbientOcclusionUseAutomaticRayLength else iAmbientOcclusionRayLength
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( IntegerParameter('shadingSamples', iAmbientOcclusionShadingSamples) )
     elementDict.addChild( FloatParameter('rayLength', iAmbientOcclusionRayLength) )
@@ -1261,7 +1373,7 @@ def writeIntegratorAmbientOcclusion(renderSettings, integratorMitsuba):
     return elementDict
 
 
-def writeIntegratorDirectIllumination(renderSettings, integratorMitsuba):
+def writeIntegratorDirectIllumination(renderSettings, integratorCycles):
     # Get values from the scene
     iDirectIlluminationShadingSamples = cmds.getAttr("%s.%s" % (renderSettings, "iDirectIlluminationShadingSamples"))
     iDirectIlluminationUseEmitterAndBSDFSamples = cmds.getAttr("%s.%s" % (renderSettings, "iDirectIlluminationUseEmitterAndBSDFSamples"))
@@ -1271,7 +1383,7 @@ def writeIntegratorDirectIllumination(renderSettings, integratorMitsuba):
     iDirectIlluminationHideEmitters = cmds.getAttr("%s.%s" % (renderSettings, "iDirectIlluminationHideEmitters"))
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     if iDirectIlluminationUseEmitterAndBSDFSamples:
         elementDict.addChild( IntegerParameter('emitterSamples', iDirectIlluminationEmitterSamples) )
@@ -1285,7 +1397,7 @@ def writeIntegratorDirectIllumination(renderSettings, integratorMitsuba):
     return elementDict
 
 
-def writeIntegratorPhotonMap(renderSettings, integratorMitsuba):
+def writeIntegratorPhotonMap(renderSettings, integratorCycles):
     # Get values from the scene
     iPhotonMapDirectSamples = cmds.getAttr("%s.%s" % (renderSettings, "iPhotonMapDirectSamples"))
     iPhotonMapGlossySamples = cmds.getAttr("%s.%s" % (renderSettings, "iPhotonMapGlossySamples"))
@@ -1304,7 +1416,7 @@ def writeIntegratorPhotonMap(renderSettings, integratorMitsuba):
     iPhotonMapMaxDepth = -1 if iPhotonMapUseInfiniteDepth else iPhotonMapMaxDepth
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( IntegerParameter('directSamples', iPhotonMapDirectSamples) )
     elementDict.addChild( IntegerParameter('glossySamples', iPhotonMapGlossySamples) )
@@ -1327,13 +1439,13 @@ def writeIntegratorPhotonMap(renderSettings, integratorMitsuba):
     return elementDict
 
 
-def writeIntegratorProgressivePhotonMap(renderSettings, integratorMitsuba):
+def writeIntegratorProgressivePhotonMap(renderSettings, integratorCycles):
     # Get values from the scene
     attrPrefixes = { 
         "ppm" : "", 
         "sppm" : "Stochastic", 
     }
-    attrPrefix = attrPrefixes[integratorMitsuba]
+    attrPrefix = attrPrefixes[integratorCycles]
 
     iProgressivePhotonMapUseInfiniteDepth = cmds.getAttr("%s.%s" % (renderSettings, "i%sProgressivePhotonMapUseInfiniteDepth" % attrPrefix))
     iProgressivePhotonMapMaxDepth = cmds.getAttr("%s.%s" % (renderSettings, "i%sProgressivePhotonMapMaxDepth" % attrPrefix))
@@ -1347,7 +1459,7 @@ def writeIntegratorProgressivePhotonMap(renderSettings, integratorMitsuba):
     iProgressivePhotonMapMaxDepth = -1 if iProgressivePhotonMapUseInfiniteDepth else iProgressivePhotonMapMaxDepth
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( IntegerParameter('maxDepth', iProgressivePhotonMapMaxDepth) )
     elementDict.addChild( IntegerParameter('photonCount', iProgressivePhotonMapPhotonCount) )
@@ -1362,7 +1474,7 @@ def writeIntegratorProgressivePhotonMap(renderSettings, integratorMitsuba):
     return elementDict
 
 
-def writeIntegratorPrimarySampleSpaceMetropolisLightTransport(renderSettings, integratorMitsuba):
+def writeIntegratorPrimarySampleSpaceMetropolisLightTransport(renderSettings, integratorCycles):
     # Get values from the scene
     iPrimarySampleSpaceMetropolisLightTransportBidirectional = cmds.getAttr("%s.%s" % (renderSettings, "iPrimarySampleSpaceMetropolisLightTransportBidirectional"))
     iPrimarySampleSpaceMetropolisLightTransportUseInfiniteDepth = cmds.getAttr("%s.%s" % (renderSettings, "iPrimarySampleSpaceMetropolisLightTransportUseInfiniteDepth"))
@@ -1376,7 +1488,7 @@ def writeIntegratorPrimarySampleSpaceMetropolisLightTransport(renderSettings, in
     iPrimarySampleSpaceMetropolisLightTransportMaxDepth = -1 if iPrimarySampleSpaceMetropolisLightTransportUseInfiniteDepth else iPrimarySampleSpaceMetropolisLightTransportMaxDepth
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( BooleanParameter('bidirectional', iPrimarySampleSpaceMetropolisLightTransportBidirectional) )
     elementDict.addChild( IntegerParameter('maxDepth', iPrimarySampleSpaceMetropolisLightTransportMaxDepth) )
@@ -1389,7 +1501,7 @@ def writeIntegratorPrimarySampleSpaceMetropolisLightTransport(renderSettings, in
     return elementDict
 
 
-def writeIntegratorPathSpaceMetropolisLightTransport(renderSettings, integratorMitsuba):
+def writeIntegratorPathSpaceMetropolisLightTransport(renderSettings, integratorCycles):
     # Get values from the scene
     iPathSpaceMetropolisLightTransportUseInfiniteDepth = cmds.getAttr("%s.%s" % (renderSettings, "iPathSpaceMetropolisLightTransportUseInfiniteDepth"))
     iPathSpaceMetropolisLightTransportMaxDepth = cmds.getAttr("%s.%s" % (renderSettings, "iPathSpaceMetropolisLightTransportMaxDepth"))
@@ -1406,7 +1518,7 @@ def writeIntegratorPathSpaceMetropolisLightTransport(renderSettings, integratorM
     iPathSpaceMetropolisLightTransportMaxDepth = -1 if iPathSpaceMetropolisLightTransportUseInfiniteDepth else iPathSpaceMetropolisLightTransportMaxDepth
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( IntegerParameter('maxDepth', iPathSpaceMetropolisLightTransportMaxDepth) )
     elementDict.addChild( IntegerParameter('directSamples', iPathSpaceMetropolisLightTransportDirectSamples) )
@@ -1422,7 +1534,7 @@ def writeIntegratorPathSpaceMetropolisLightTransport(renderSettings, integratorM
     return elementDict
 
 
-def writeIntegratorEnergyRedistributionPathTracing(renderSettings, integratorMitsuba):
+def writeIntegratorEnergyRedistributionPathTracing(renderSettings, integratorCycles):
     # Get values from the scene
     iEnergyRedistributionPathTracingUseInfiniteDepth = cmds.getAttr("%s.%s" % (renderSettings, "iEnergyRedistributionPathTracingUseInfiniteDepth"))
     iEnergyRedistributionPathTracingMaxDepth = cmds.getAttr("%s.%s" % (renderSettings, "iEnergyRedistributionPathTracingMaxDepth"))
@@ -1439,7 +1551,7 @@ def writeIntegratorEnergyRedistributionPathTracing(renderSettings, integratorMit
     iEnergyRedistributionPathTracingMaxDepth = -1 if iEnergyRedistributionPathTracingUseInfiniteDepth else iEnergyRedistributionPathTracingMaxDepth
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( IntegerParameter('maxDepth', iEnergyRedistributionPathTracingMaxDepth) )
     elementDict.addChild( FloatParameter('numChains', iEnergyRedistributionPathTracingNumChains) )
@@ -1454,7 +1566,7 @@ def writeIntegratorEnergyRedistributionPathTracing(renderSettings, integratorMit
 
     return elementDict
 
-def writeIntegratorAdjointParticleTracer(renderSettings, integratorMitsuba):
+def writeIntegratorAdjointParticleTracer(renderSettings, integratorCycles):
     # Get values from the scene
     iAdjointParticleTracerUseInfiniteDepth = cmds.getAttr("%s.%s" % (renderSettings, "iAdjointParticleTracerUseInfiniteDepth"))
     iAdjointParticleTracerMaxDepth = cmds.getAttr("%s.%s" % (renderSettings, "iAdjointParticleTracerMaxDepth"))
@@ -1465,7 +1577,7 @@ def writeIntegratorAdjointParticleTracer(renderSettings, integratorMitsuba):
     iAdjointParticleTracerMaxDepth = -1 if iAdjointParticleTracerUseInfiniteDepth else iAdjointParticleTracerMaxDepth
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( IntegerParameter('maxDepth', iAdjointParticleTracerMaxDepth) )
     elementDict.addChild( IntegerParameter('rrDepth', iAdjointParticleTracerRRDepth) )
@@ -1474,7 +1586,7 @@ def writeIntegratorAdjointParticleTracer(renderSettings, integratorMitsuba):
 
     return elementDict
 
-def writeIntegratorVirtualPointLight(renderSettings, integratorMitsuba):
+def writeIntegratorVirtualPointLight(renderSettings, integratorCycles):
     # Get values from the scene
     iVirtualPointLightUseInfiniteDepth = cmds.getAttr("%s.%s" % (renderSettings, "iVirtualPointLightUseInfiniteDepth"))
     iVirtualPointLightMaxDepth = cmds.getAttr("%s.%s" % (renderSettings, "iVirtualPointLightMaxDepth"))
@@ -1484,7 +1596,7 @@ def writeIntegratorVirtualPointLight(renderSettings, integratorMitsuba):
     iVirtualPointLightMaxDepth = -1 if iVirtualPointLightUseInfiniteDepth else iVirtualPointLightMaxDepth
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( IntegerParameter('maxDepth', iVirtualPointLightMaxDepth) )
     elementDict.addChild( IntegerParameter('shadowMapResolution', iVirtualPointLightShadowMapResolution) )
@@ -1493,13 +1605,13 @@ def writeIntegratorVirtualPointLight(renderSettings, integratorMitsuba):
     return elementDict
 
 
-def writeIntegratorAdaptive(renderSettings, integratorMitsuba, subIntegrator):
+def writeIntegratorAdaptive(renderSettings, integratorCycles, subIntegrator):
     miAdaptiveMaxError = cmds.getAttr("%s.%s" % (renderSettings, "miAdaptiveMaxError"))
     miAdaptivePValue = cmds.getAttr("%s.%s" % (renderSettings, "miAdaptivePValue"))
     miAdaptiveMaxSampleFactor = cmds.getAttr("%s.%s" % (renderSettings, "miAdaptiveMaxSampleFactor"))
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( FloatParameter('maxError', miAdaptiveMaxError/100.0) )
     elementDict.addChild( FloatParameter('pValue', miAdaptivePValue/100.0) )
@@ -1509,7 +1621,7 @@ def writeIntegratorAdaptive(renderSettings, integratorMitsuba, subIntegrator):
 
     return elementDict
 
-def writeIntegratorIrradianceCache(renderSettings, integratorMitsuba, subIntegrator):
+def writeIntegratorIrradianceCache(renderSettings, integratorCycles, subIntegrator):
     miIrradianceCacheResolution = cmds.getAttr("%s.%s" % (renderSettings, "miIrradianceCacheResolution"))
     miIrradianceCacheQuality = cmds.getAttr("%s.%s" % (renderSettings, "miIrradianceCacheQuality"))
     miIrradianceCacheGradients = cmds.getAttr("%s.%s" % (renderSettings, "miIrradianceCacheGradients"))
@@ -1521,7 +1633,7 @@ def writeIntegratorIrradianceCache(renderSettings, integratorMitsuba, subIntegra
     miIrradianceCacheDebug = cmds.getAttr("%s.%s" % (renderSettings, "miIrradianceCacheDebug"))
 
     # Create a structure to be written
-    elementDict = IntegratorElement(integratorMitsuba)
+    elementDict = IntegratorElement(integratorCycles)
 
     elementDict.addChild( IntegerParameter('resolution', miIrradianceCacheResolution) )
     elementDict.addChild( FloatParameter('quality', miIrradianceCacheQuality) )
@@ -1538,24 +1650,24 @@ def writeIntegratorIrradianceCache(renderSettings, integratorMitsuba, subIntegra
     return elementDict
 
 def writeMetaIntegrator(renderSettings, metaIntegratorMaya, subIntegrator):
-    mayaMetaIntegratorUINameToMitsubaName = {
+    mayaMetaIntegratorUINameToCyclesName = {
         "Adaptive" : "adaptive",
         "Irradiance Cache" : "irrcache"
     }
 
-    if metaIntegratorMaya in mayaMetaIntegratorUINameToMitsubaName:
-        metaIntegratorMitsuba = mayaMetaIntegratorUINameToMitsubaName[metaIntegratorMaya]
+    if metaIntegratorMaya in mayaMetaIntegratorUINameToCyclesName:
+        metaIntegratorCycles = mayaMetaIntegratorUINameToCyclesName[metaIntegratorMaya]
     else:
-        metaIntegratorMitsuba = None
+        metaIntegratorCycles = None
 
     mayaMetaIntegratorUINameToIntegratorFunction = {
         "Adaptive" : writeIntegratorAdaptive,
         "Irradiance Cache" : writeIntegratorIrradianceCache
     }
 
-    if metaIntegratorMitsuba:
+    if metaIntegratorCycles:
         writeMetaIntegratorFunction = mayaMetaIntegratorUINameToIntegratorFunction[metaIntegratorMaya]
-        integratorElement = writeMetaIntegratorFunction(renderSettings, metaIntegratorMitsuba, subIntegrator)
+        integratorElement = writeMetaIntegratorFunction(renderSettings, metaIntegratorCycles, subIntegrator)
     else:
         integratorElement = subIntegrator
 
@@ -1597,7 +1709,7 @@ def writeIntegrator(renderSettings):
     # Create base integrator
     integratorMaya = cmds.getAttr("%s.%s" % (renderSettings, "integrator")).replace('_', ' ')
 
-    mayaUINameToMitsubaName = {
+    mayaUINameToCyclesName = {
         "Ambient Occlusion" : "ao",
         "Direct Illumination" : "direct",
         "Path Tracer" : "path",
@@ -1614,10 +1726,10 @@ def writeIntegrator(renderSettings):
         "Virtual Point Lights" : "vpl"
     }
 
-    if integratorMaya in mayaUINameToMitsubaName:
-        integratorMitsuba = mayaUINameToMitsubaName[integratorMaya]
+    if integratorMaya in mayaUINameToCyclesName:
+        integratorCycles = mayaUINameToCyclesName[integratorMaya]
     else:
-        integratorMitsuba = "path"
+        integratorCycles = "path"
 
     mayaUINameToIntegratorFunction = {
         "Ambient Occlusion" : writeIntegratorAmbientOcclusion,
@@ -1642,7 +1754,7 @@ def writeIntegrator(renderSettings):
         print( "Unsupported Integrator : %s. Using Path Tracer" % integratorMaya)
         writeIntegratorFunction = writeIntegratorPathTracer
 
-    integratorElement = writeIntegratorFunction(renderSettings, integratorMitsuba)
+    integratorElement = writeIntegratorFunction(renderSettings, integratorCycles)
 
     # Create meta integrator
     metaIntegratorMaya = cmds.getAttr("%s.%s" % (renderSettings, "metaIntegrator")).replace('_', ' ')
@@ -1668,7 +1780,7 @@ def writeSampler(frameNumber, renderSettings):
     if samplerScramble == -1:
         samplerScramble = frameNumber
 
-    mayaUINameToMitsubaName = {
+    mayaUINameToCyclesName = {
         "Independent Sampler"  : "independent",
         "Stratified Sampler" : "stratified",
         "Low Discrepancy Sampler" : "ldsampler",
@@ -1677,12 +1789,12 @@ def writeSampler(frameNumber, renderSettings):
         "Sobol QMC Sampler" : "sobol"
     }
 
-    if samplerMaya in mayaUINameToMitsubaName:
-        samplerMitsuba = mayaUINameToMitsubaName[samplerMaya]
+    if samplerMaya in mayaUINameToCyclesName:
+        samplerCycles = mayaUINameToCyclesName[samplerMaya]
     else:
-        samplerMitsuba = "independent"
+        samplerCycles = "independent"
 
-    elementDict = SamplerElement(samplerMitsuba)
+    elementDict = SamplerElement(samplerCycles)
 
     elementDict.addChild( IntegerParameter('sampleCount', sampleCount) )
 
@@ -1757,7 +1869,7 @@ def filmAddMultichannelAttributes(renderSettings, elementDict):
 def writeReconstructionFilter(renderSettings):
     #Filter
     reconstructionFilterMaya = cmds.getAttr("%s.%s" % (renderSettings, "reconstructionFilter")).replace('_' ,' ')
-    mayaUINameToMitsubaName = {
+    mayaUINameToCyclesName = {
         "Box filter"  : "box",
         "Tent filter" : "tent",
         "Gaussian filter" : "gaussian",
@@ -1766,16 +1878,16 @@ def writeReconstructionFilter(renderSettings):
         "Mitchell-Netravali filter" : "mitchell"
     }
 
-    if reconstructionFilterMaya in mayaUINameToMitsubaName:
-        reconstructionFilterMitsuba = mayaUINameToMitsubaName[reconstructionFilterMaya]
+    if reconstructionFilterMaya in mayaUINameToCyclesName:
+        reconstructionFilterCycles = mayaUINameToCyclesName[reconstructionFilterMaya]
     else:
-        reconstructionFilterMitsuba = "box"
+        reconstructionFilterCycles = "box"
 
-    rfilterElement = createSceneElement(typeAttribute=reconstructionFilterMitsuba, elementType='rfilter')
+    rfilterElement = createSceneElement(typeAttribute=reconstructionFilterCycles, elementType='rfilter')
 
     return rfilterElement
 
-def writeFilmHDR(renderSettings, filmMitsuba):
+def writeFilmHDR(renderSettings, filmCycles):
     fHDRFilmFileFormat = cmds.getAttr("%s.%s" % (renderSettings, "fHDRFilmFileFormat"))
     fHDRFilmPixelFormat = cmds.getAttr("%s.%s" % (renderSettings, "fHDRFilmPixelFormat"))
     fHDRFilmComponentFormat = cmds.getAttr("%s.%s" % (renderSettings, "fHDRFilmComponentFormat"))
@@ -1783,19 +1895,19 @@ def writeFilmHDR(renderSettings, filmMitsuba):
     fHDRFilmBanner = cmds.getAttr("%s.%s" % (renderSettings, "fHDRFilmBanner"))
     fHDRFilmHighQualityEdges = cmds.getAttr("%s.%s" % (renderSettings, "fHDRFilmHighQualityEdges"))
 
-    mayaFileFormatUINameToMitsubaName = {
+    mayaFileFormatUINameToCyclesName = {
         "OpenEXR (.exr)"  : "openexr",
         "RGBE (.hdr)" : "rgbe",
         "Portable Float Map (.pfm)"  : "pfm"
     }
 
-    if fHDRFilmFileFormat in mayaFileFormatUINameToMitsubaName:
-        fHDRFilmFileFormatMitsuba = mayaFileFormatUINameToMitsubaName[fHDRFilmFileFormat]
+    if fHDRFilmFileFormat in mayaFileFormatUINameToCyclesName:
+        fHDRFilmFileFormatCycles = mayaFileFormatUINameToCyclesName[fHDRFilmFileFormat]
     else:
         print( "Unsupported file format : %s. Using OpenEXR (.exr)" % fHDRFilmFileFormat)
-        fHDRFilmFileFormatMitsuba = "openexr"
+        fHDRFilmFileFormatCycles = "openexr"
 
-    mayaPixelFormatUINameToMitsubaName = {
+    mayaPixelFormatUINameToCyclesName = {
         'Luminance' : 'luminance',
         'Luminance Alpha' : 'luminanceAlpha',
         'RGB' : 'rgb',
@@ -1806,41 +1918,41 @@ def writeFilmHDR(renderSettings, filmMitsuba):
         'Spectrum Alpha' : 'spectrumAlpha'
     }
 
-    if fHDRFilmPixelFormat in mayaPixelFormatUINameToMitsubaName:
-        fHDRFilmPixelFormatMitsuba = mayaPixelFormatUINameToMitsubaName[fHDRFilmPixelFormat]
+    if fHDRFilmPixelFormat in mayaPixelFormatUINameToCyclesName:
+        fHDRFilmPixelFormatCycles = mayaPixelFormatUINameToCyclesName[fHDRFilmPixelFormat]
     else:
         print( "Unsupported pixel format : %s. Using RGB" % fHDRFilmPixelFormat)
-        fHDRFilmPixelFormatMitsuba = "rgb"
+        fHDRFilmPixelFormatCycles = "rgb"
 
-    mayaComponentFormatUINameToMitsubaName = {
+    mayaComponentFormatUINameToCyclesName = {
         'Float 16' : 'float16',
         'Float 32' : 'float32',
         'UInt 32' : 'uint32',
     }
 
-    if fHDRFilmComponentFormat in mayaComponentFormatUINameToMitsubaName:
-        fHDRFilmComponentFormatMitsuba = mayaComponentFormatUINameToMitsubaName[fHDRFilmComponentFormat]
+    if fHDRFilmComponentFormat in mayaComponentFormatUINameToCyclesName:
+        fHDRFilmComponentFormatCycles = mayaComponentFormatUINameToCyclesName[fHDRFilmComponentFormat]
     else:
         print( "Unsupported component format : %s. Using Float 16" % fHDRFilmComponentFormat)
-        fHDRFilmComponentFormatMitsuba = "float16"
+        fHDRFilmComponentFormatCycles = "float16"
 
-    elementDict = FilmElement(filmMitsuba)
+    elementDict = FilmElement(filmCycles)
 
-    elementDict.addChild( StringParameter('fileFormat', fHDRFilmFileFormatMitsuba) )
-    if fHDRFilmFileFormatMitsuba == "openexr":
-        elementDict.addChild( StringParameter('pixelFormat', fHDRFilmPixelFormatMitsuba) )
-    elementDict.addChild( StringParameter('componentFormat', fHDRFilmComponentFormatMitsuba ) )
+    elementDict.addChild( StringParameter('fileFormat', fHDRFilmFileFormatCycles) )
+    if fHDRFilmFileFormatCycles == "openexr":
+        elementDict.addChild( StringParameter('pixelFormat', fHDRFilmPixelFormatCycles) )
+    elementDict.addChild( StringParameter('componentFormat', fHDRFilmComponentFormatCycles ) )
     elementDict.addChild( BooleanParameter('attachLog', fHDRFilmAttachLog) )
     elementDict.addChild( BooleanParameter('banner', fHDRFilmBanner) )
     elementDict.addChild( BooleanParameter('highQualityEdges', fHDRFilmHighQualityEdges) )
 
     return elementDict
 
-def writeFilmHDRTiled(renderSettings, filmMitsuba):
+def writeFilmHDRTiled(renderSettings, filmCycles):
     fTiledHDRFilmPixelFormat = cmds.getAttr("%s.%s" % (renderSettings, "fTiledHDRFilmPixelFormat"))
     fTiledHDRFilmComponentFormat = cmds.getAttr("%s.%s" % (renderSettings, "fTiledHDRFilmComponentFormat"))
 
-    mayaPixelFormatUINameToMitsubaName = {
+    mayaPixelFormatUINameToCyclesName = {
         'Luminance' : 'luminance',
         'Luminance Alpha' : 'luminanceAlpha',
         'RGB' : 'rgb',
@@ -1851,32 +1963,32 @@ def writeFilmHDRTiled(renderSettings, filmMitsuba):
         'Spectrum Alpha' : 'spectrumAlpha'
     }
 
-    if fTiledHDRFilmPixelFormat in mayaPixelFormatUINameToMitsubaName:
-        fTiledHDRFilmPixelFormatMitsuba = mayaPixelFormatUINameToMitsubaName[fTiledHDRFilmPixelFormat]
+    if fTiledHDRFilmPixelFormat in mayaPixelFormatUINameToCyclesName:
+        fTiledHDRFilmPixelFormatCycles = mayaPixelFormatUINameToCyclesName[fTiledHDRFilmPixelFormat]
     else:
         print( "Unsupported pixel format : %s. Using RGB" % fTiledHDRFilmPixelFormat)
-        fTiledHDRFilmPixelFormatMitsuba = "rgb"
+        fTiledHDRFilmPixelFormatCycles = "rgb"
 
-    mayaComponentFormatUINameToMitsubaName = {
+    mayaComponentFormatUINameToCyclesName = {
         'Float 16' : 'float16',
         'Float 32' : 'float32',
         'UInt 32' : 'uint32',
     }
 
-    if fTiledHDRFilmComponentFormat in mayaComponentFormatUINameToMitsubaName:
-        fTiledHDRFilmComponentFormatMitsuba = mayaComponentFormatUINameToMitsubaName[fTiledHDRFilmComponentFormat]
+    if fTiledHDRFilmComponentFormat in mayaComponentFormatUINameToCyclesName:
+        fTiledHDRFilmComponentFormatCycles = mayaComponentFormatUINameToCyclesName[fTiledHDRFilmComponentFormat]
     else:
         print( "Unsupported component format : %s. Using Float 16" % fTiledHDRFilmComponentFormat)
-        fTiledHDRFilmComponentFormatMitsuba = "float16"
+        fTiledHDRFilmComponentFormatCycles = "float16"
 
-    elementDict = FilmElement(filmMitsuba)
+    elementDict = FilmElement(filmCycles)
 
-    elementDict.addChild( StringParameter('pixelFormat', fTiledHDRFilmPixelFormatMitsuba) )
-    elementDict.addChild( StringParameter('componentFormat', fTiledHDRFilmComponentFormatMitsuba) )
+    elementDict.addChild( StringParameter('pixelFormat', fTiledHDRFilmPixelFormatCycles) )
+    elementDict.addChild( StringParameter('componentFormat', fTiledHDRFilmComponentFormatCycles) )
 
     return elementDict
 
-def writeFilmLDR(renderSettings, filmMitsuba):
+def writeFilmLDR(renderSettings, filmCycles):
     fLDRFilmFileFormat = cmds.getAttr("%s.%s" % (renderSettings, "fLDRFilmFileFormat"))
     fLDRFilmPixelFormat = cmds.getAttr("%s.%s" % (renderSettings, "fLDRFilmPixelFormat"))
     fLDRFilmTonemapMethod = cmds.getAttr("%s.%s" % (renderSettings, "fLDRFilmTonemapMethod"))
@@ -1887,46 +1999,46 @@ def writeFilmLDR(renderSettings, filmMitsuba):
     fLDRFilmBanner = cmds.getAttr("%s.%s" % (renderSettings, "fLDRFilmBanner"))
     fLDRFilmHighQualityEdges = cmds.getAttr("%s.%s" % (renderSettings, "fLDRFilmHighQualityEdges"))
 
-    mayaFileFormatUINameToMitsubaName = {
+    mayaFileFormatUINameToCyclesName = {
         "PNG (.png)"  : "png",
         "JPEG (.jpg)" : "jpeg"
     }
 
-    if fLDRFilmFileFormat in mayaFileFormatUINameToMitsubaName:
-        fLDRFilmFileFormatMitsuba = mayaFileFormatUINameToMitsubaName[fLDRFilmFileFormat]
+    if fLDRFilmFileFormat in mayaFileFormatUINameToCyclesName:
+        fLDRFilmFileFormatCycles = mayaFileFormatUINameToCyclesName[fLDRFilmFileFormat]
     else:
         print( "Unsupported file format : %s. Using PNG (.png)" % fLDRFilmFileFormat)
-        fLDRFilmFileFormatMitsuba = "png"
+        fLDRFilmFileFormatCycles = "png"
 
-    mayaPixelFormatUINameToMitsubaName = {
+    mayaPixelFormatUINameToCyclesName = {
         'Luminance' : 'luminance',
         'Luminance Alpha' : 'luminanceAlpha',
         'RGB' : 'rgb',
         'RGBA' : 'rgba'
     }
 
-    if fLDRFilmPixelFormat in mayaPixelFormatUINameToMitsubaName:
-        fLDRFilmPixelFormatMitsuba = mayaPixelFormatUINameToMitsubaName[fLDRFilmPixelFormat]
+    if fLDRFilmPixelFormat in mayaPixelFormatUINameToCyclesName:
+        fLDRFilmPixelFormatCycles = mayaPixelFormatUINameToCyclesName[fLDRFilmPixelFormat]
     else:
         print( "Unsupported pixel format : %s. Using RGB" % fLDRFilmPixelFormat)
-        fLDRFilmPixelFormatMitsuba = "rgb"
+        fLDRFilmPixelFormatCycles = "rgb"
 
-    mayaTonemapMethodUINameToMitsubaName = {
+    mayaTonemapMethodUINameToCyclesName = {
         'Gamma' : 'gamma',
         'Reinhard' : 'reinhard'
     }
 
-    if fLDRFilmTonemapMethod in mayaTonemapMethodUINameToMitsubaName:
-        fLDRFilmTonemapMethodMitsuba = mayaTonemapMethodUINameToMitsubaName[fLDRFilmTonemapMethod]
+    if fLDRFilmTonemapMethod in mayaTonemapMethodUINameToCyclesName:
+        fLDRFilmTonemapMethodCycles = mayaTonemapMethodUINameToCyclesName[fLDRFilmTonemapMethod]
     else:
         print( "Unsupported tonemap method : %s. Using Gamma" % fLDRFilmTonemapMethod)
-        fLDRFilmTonemapMethodMitsuba = "gamma"
+        fLDRFilmTonemapMethodCycles = "gamma"
 
-    elementDict = FilmElement(filmMitsuba)
+    elementDict = FilmElement(filmCycles)
 
-    elementDict.addChild( StringParameter('fileFormat', fLDRFilmFileFormatMitsuba) )
-    elementDict.addChild( StringParameter('pixelFormat', fLDRFilmPixelFormatMitsuba) )
-    elementDict.addChild( StringParameter('tonemapMethod', fLDRFilmTonemapMethodMitsuba) )
+    elementDict.addChild( StringParameter('fileFormat', fLDRFilmFileFormatCycles) )
+    elementDict.addChild( StringParameter('pixelFormat', fLDRFilmPixelFormatCycles) )
+    elementDict.addChild( StringParameter('tonemapMethod', fLDRFilmTonemapMethodCycles) )
     elementDict.addChild( FloatParameter('gamma', fLDRFilmGamma) )
     elementDict.addChild( FloatParameter('exposure', fLDRFilmExposure) )
     elementDict.addChild( FloatParameter('key', fLDRFilmKey) )
@@ -1936,26 +2048,26 @@ def writeFilmLDR(renderSettings, filmMitsuba):
 
     return elementDict
 
-def writeFilmMath(renderSettings, filmMitsuba):
+def writeFilmMath(renderSettings, filmCycles):
     fMathFilmFileFormat = cmds.getAttr("%s.%s" % (renderSettings, "fMathFilmFileFormat"))
     fMathFilmPixelFormat = cmds.getAttr("%s.%s" % (renderSettings, "fMathFilmPixelFormat"))
     fMathFilmDigits = cmds.getAttr("%s.%s" % (renderSettings, "fMathFilmDigits"))
     fMathFilmVariable = cmds.getAttr("%s.%s" % (renderSettings, "fMathFilmVariable"))
     fMathFilmHighQualityEdges = cmds.getAttr("%s.%s" % (renderSettings, "fMathFilmHighQualityEdges"))
 
-    mayaFileFormatUINameToMitsubaName = {
+    mayaFileFormatUINameToCyclesName = {
         "Matlab (.m)"  : "matlab",
         "Mathematica (.m)" : "mathematica",
         "NumPy (.npy)" : "numpy"
     }
 
-    if fMathFilmFileFormat in mayaFileFormatUINameToMitsubaName:
-        fMathFilmFileFormatMitsuba = mayaFileFormatUINameToMitsubaName[fMathFilmFileFormat]
+    if fMathFilmFileFormat in mayaFileFormatUINameToCyclesName:
+        fMathFilmFileFormatCycles = mayaFileFormatUINameToCyclesName[fMathFilmFileFormat]
     else:
         print( "Unsupported file format : %s. Using Matlab (.m)" % fMathFilmFileFormat)
-        fMathFilmFileFormatMitsuba = "matlab"
+        fMathFilmFileFormatCycles = "matlab"
 
-    mayaPixelFormatUINameToMitsubaName = {
+    mayaPixelFormatUINameToCyclesName = {
         'Luminance' : 'luminance',
         'Luminance Alpha' : 'luminanceAlpha',
         'RGB' : 'rgb',
@@ -1964,16 +2076,16 @@ def writeFilmMath(renderSettings, filmMitsuba):
         'Spectrum Alpha' : 'spectrumAlpha'
     }
 
-    if fMathFilmPixelFormat in mayaPixelFormatUINameToMitsubaName:
-        fMathFilmPixelFormatMitsuba = mayaPixelFormatUINameToMitsubaName[fMathFilmPixelFormat]
+    if fMathFilmPixelFormat in mayaPixelFormatUINameToCyclesName:
+        fMathFilmPixelFormatCycles = mayaPixelFormatUINameToCyclesName[fMathFilmPixelFormat]
     else:
         print( "Unsupported pixel format : %s. Using RGB" % fMathFilmPixelFormat)
-        fMathFilmPixelFormatMitsuba = "rgb"
+        fMathFilmPixelFormatCycles = "rgb"
 
-    elementDict = FilmElement(filmMitsuba)
+    elementDict = FilmElement(filmCycles)
 
-    elementDict.addChild( StringParameter('fileFormat', fMathFilmFileFormatMitsuba) )
-    elementDict.addChild( StringParameter('pixelFormat', fMathFilmPixelFormatMitsuba) )
+    elementDict.addChild( StringParameter('fileFormat', fMathFilmFileFormatCycles) )
+    elementDict.addChild( StringParameter('pixelFormat', fMathFilmPixelFormatCycles) )
     elementDict.addChild( IntegerParameter('digits', fMathFilmDigits) )
     elementDict.addChild( StringParameter('variable', fMathFilmVariable) )
     elementDict.addChild( BooleanParameter('highQualityEdges', fMathFilmHighQualityEdges) )
@@ -2009,16 +2121,16 @@ def writeFilm(frameNumber, renderSettings):
 
     # Film
     filmMaya = cmds.getAttr("%s.%s" % (renderSettings, "film"))
-    mayaFilmUINameToMitsubaName = {
+    mayaFilmUINameToCyclesName = {
         "HDR Film"  : "hdrfilm",
         "LDR Film" : "ldrfilm",
         "HDR Film - Tiled"  : "tiledhdrfilm",
         "Math Film"  : "mfilm",
     }
-    if filmMaya in mayaFilmUINameToMitsubaName:
-        filmMitsuba = mayaFilmUINameToMitsubaName[filmMaya]
+    if filmMaya in mayaFilmUINameToCyclesName:
+        filmCycles = mayaFilmUINameToCyclesName[filmMaya]
     else:
-        filmMitsuba = "hdrfilm"
+        filmCycles = "hdrfilm"
 
     mayaUINameToFilmFunction = {
         "HDR Film" : writeFilmHDR,
@@ -2033,7 +2145,7 @@ def writeFilm(frameNumber, renderSettings):
         print( "Unsupported Film : %s. Using HDR" % filmMaya)
         writeFilmFunction = writeFilmHDR
 
-    filmElement = writeFilmFunction(renderSettings, filmMitsuba)
+    filmElement = writeFilmFunction(renderSettings, filmCycles)
 
     rfilterElement = writeReconstructionFilter(renderSettings)
 
@@ -2047,7 +2159,7 @@ def writeFilm(frameNumber, renderSettings):
     filmElement = addRenderRegionCropCoordinates(filmElement)
 
     multichannel = cmds.getAttr("%s.%s" % (renderSettings, "multichannel"))
-    if multichannel and filmMitsuba in ["hdrfilm", "tiledhdrfilm"]:
+    if multichannel and filmCycles in ["hdrfilm", "tiledhdrfilm"]:
         filmElement = filmAddMultichannelAttributes(renderSettings, filmElement)
 
     return filmElement
@@ -2070,6 +2182,50 @@ def getRenderableCamera():
         rCamShape = cams[0]
 
     return rCamShape
+
+z_flip_mtx = pymel.core.datatypes.Matrix([1.0, 0.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 0.0, -1.0, 0.0,  0.0, 0.0, 0.0, 1.0])
+ident_mtx = pymel.core.datatypes.Matrix([1.0, 0.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 0.0, 1.0])
+
+def getTransformDict(node, mtx = z_flip_mtx):
+    xform = pymel.core.datatypes.Matrix(node.getTransformation())
+
+    xform = mtx * xform
+
+    xform_str = " ".join([str(xform[i][j]) for i in range(4) for j in range(4)])
+
+    transformDict = createSceneElement(elementType = 'transform')
+    transformDict.addAttribute('matrix', xform_str)
+
+    return transformDict
+
+def writeSensorCycles(frameNumber, renderSettings):
+    # Find renderable camera
+    rCamShape = getRenderableCamera()
+
+    camNode = pymel.core.PyNode(rCamShape)
+
+    transformDict = getTransformDict(camNode.parent(0))
+
+    camDict = createSceneElement(elementType = 'camera')
+    camDict.addAttribute('type', 'perspective')
+    camDict.addAttribute('fov', 0.5*camNode.getHorizontalFieldOfView()*3.14159265/180.0)
+
+    transformDict.addChild(camDict)
+
+    return transformDict
+
+def writeBackgroundCycles():
+
+    bgDict = createSceneElement(elementType = 'background')
+    bgSubDict = createSceneElement(elementType = 'background')
+    bgSubDict.addAttributes({"name": "bg", "strength": "2.0", "color": "0.2 0.2 0.2"})
+
+    conn = createConnectionElement("bg background", "output surface")
+
+    bgDict.addChild(bgSubDict)
+    bgDict.addChild(conn)
+
+    return bgDict
 
 def writeSensor(frameNumber, renderSettings):
     # Find renderable camera
@@ -2196,6 +2352,61 @@ def writeLightPoint(light):
     elementDict.addChild( PointParameter('position', position[0], position[1], position[2]) )
 
     return elementDict
+
+def writeLightArea(light):
+    intensity = cmds.getAttr(light+".intensity")
+    color = cmds.getAttr(light+".color")[0]
+    irradiance = [0,0,0]
+    for i in range(3):
+        irradiance[i] = intensity*color[i]
+
+    lightNode = pymel.core.PyNode(light)
+
+    areaLightName = light.replace(':', '__').replace('|', '__')
+
+    shaderDict = createSceneElement(elementType = 'shader')
+    shaderDict.addAttribute('name', "{0}_shader".format(areaLightName))
+
+    intensity = lightNode.getIntensity()
+    color = lightNode.getColor()
+
+    a = createSceneElement(elementType = 'emission')
+    a.addAttribute('name', 'emission')
+    a.addAttribute('color', '{0} {1} {2}'.format(color[0], color[1], color[2]))
+    a.addAttribute('strength', '{0}'.format(intensity))
+    shaderDict.addChild(a)
+
+    a = createConnectionElement("emission emission", "output surface")
+    shaderDict.addChild(a)
+
+    stateDict = createSceneElement(elementType = 'state')
+    stateDict.addAttribute('shader', "{0}_shader".format(areaLightName))
+
+    lgt = createSceneElement(elementType = 'light')
+    lgt.addAttribute('type', 'area')
+
+    xform = pymel.core.datatypes.Matrix(lightNode.parent(0).getTransformation())
+    co = pymel.core.datatypes.Point([0,0,0]) * xform
+    dir = pymel.core.datatypes.Vector([0,0,-1]).rotateBy(xform)
+
+    axisu = pymel.core.datatypes.Vector([1,0,0]) * xform
+    axisv = pymel.core.datatypes.Vector([0,1,0]) * xform
+    sizeu = axisu.length()
+    axisu.normalize()
+    sizev = axisv.length()
+    axisv.normalize()
+
+    lgt.addAttribute('dir', '{0} {1} {2}'.format(dir[0], dir[1], dir[2]))
+    lgt.addAttribute('axisu', '{0} {1} {2}'.format(axisu[0], axisu[1], axisu[2]))
+    lgt.addAttribute('sizeu', '{0}'.format(sizeu))
+    lgt.addAttribute('axisv', '{0} {1} {2}'.format(axisv[0], axisv[1], axisv[2]))
+    lgt.addAttribute('sizev', '{0}'.format(sizev))
+    lgt.addAttribute('co', '{0} {1} {2}'.format(co[0], co[1], co[2]))
+    lgt.addAttribute('size', '1')
+
+    stateDict.addChild(lgt)
+
+    return [shaderDict, stateDict]
 
 def writeLightSpot(light):
     intensity = cmds.getAttr(light+".intensity")
@@ -2390,16 +2601,16 @@ def writeLights():
     lights = cmds.ls(type="light", long=True)
     lights = [x for x in lights if isVisible(x)]
 
-    sunskyLights = cmds.ls(type="MitsubaSunsky", long=True)
+    sunskyLights = cmds.ls(type="CyclesSunsky", long=True)
     sunskyLights = [x for x in sunskyLights if isVisible(x)]
 
-    envLights = cmds.ls(type="MitsubaEnvironmentLight", long=True)
+    envLights = cmds.ls(type="CyclesEnvironmentLight", long=True)
     envLights = [x for x in envLights if isVisible(x)]
 
     # Warn if multiple environment lights are active
     if sunskyLights and envLights or sunskyLights and len(sunskyLights)>1 or envLights and len(envLights)>1:
         print( "\n" )
-        print( "Cannot specify more than one environment light (MitsubaSunsky and MitsubaEnvironmentLight)" )
+        print( "Cannot specify more than one environment light (CyclesSunsky and CyclesEnvironmentLight)" )
         print( "Using first environment or sunsky light")
         print( "\n" )
 
@@ -2415,6 +2626,8 @@ def writeLights():
             lightElements.append( writeLightPoint(light) )
         elif lightType == "spotLight":
             lightElements.append( writeLightSpot(light) )
+        elif lightType == "areaLight":
+            lightElements.extend( writeLightArea(light) )
 
     # Gather element definitions for Environment lights
     if envLights:
@@ -2437,13 +2650,13 @@ def getRenderableGeometry():
         rels = cmds.listRelatives(transform, fullPath=True)
         if rels:
             for rel in rels:
-                if cmds.nodeType(rel)=="mesh":
+                nt = cmds.nodeType(rel)
+                if nt=="mesh" or nt=="hairSystem":
                     visible = isVisible(transform)
                     if visible:
                         if transform not in geoms:
                             geoms.append(transform)
                             #print( "getRenderableGeometry - transform : %s" % transform )
-
     return geoms
 
 def writeMaterials(geoms):
@@ -2452,16 +2665,15 @@ def writeMaterials(geoms):
 
     #Write the material for each piece of geometry in the scene
     for geom in geoms:
-        #print( "writeMaterials - geom : %s" % geom )
+        print( "writeMaterials - geom : %s" % geom )
         # Surface shader
         material = getSurfaceShader(geom)
         if material and material not in writtenMaterials:
 
             materialType = cmds.nodeType(material)
-            if materialType in materialNodeTypes:
-                if materialType not in ["MitsubaObjectAreaLightShader"]:
-                    materialElement = writeShader(material, material)
-
+            if materialType not in ["CyclesObjectAreaLightShader"]:
+                materialElement = writeShaderCycles(material, material)
+                if materialElement:
                     materialElements.append(materialElement)
                     writtenMaterials.append(material)
 
@@ -2488,6 +2700,89 @@ def exportGeometry(geom, renderDir):
 
     return objFilenameFullPath
 
+def exportGeometryCycles(geom, renderDir):
+    geomNodeName = geom.replace(':', '__').replace('|', '__')
+
+    meshDict = createSceneElement(elementType = 'mesh')
+    meshDict.addAttribute('name', geomNodeName)
+
+    node = pymel.core.PyNode(geom)
+
+    xformDict = getTransformDict(node.parent(0))
+
+    nverts, verts = node.getVertices()
+
+    points = "{0}".format(" ".join(map(lambda x: "%g %g %g" % (x.x, x.y, x.z), node.getPoints())))
+    meshDict.addAttribute('P', points )
+    nverts_str = "{0}".format(" ".join(map(lambda x: str(x), nverts)))
+    meshDict.addAttribute('nverts', nverts_str)
+    verts_str = "{0}".format(" ".join(map(lambda x: str(x), verts)))
+    meshDict.addAttribute('verts', verts_str)
+
+    uvs = list()
+    for i in range(len(nverts)):
+        for vidx in range(nverts[i]):
+            u, v = node.getPolygonUV(i, vidx)
+            uvs.append("{0} {1}".format(u, v))
+
+    meshDict.addAttribute('UV', " ".join(uvs))
+
+    stateDict = createSceneElement(elementType = 'state')
+    material = getSurfaceShader(geom)
+    stateDict.addAttribute('shader', "{0}_shader".format(material))
+    stateDict.addAttribute('interpolation', 'smooth')
+    stateDict.addChild(meshDict)
+
+    xformDict.addChild(stateDict)
+
+    #return [shaderDict, xformDict]
+    return [xformDict]
+
+def exportHairCycles(geom, renderDir):
+    geomNodeName = geom.replace(':', '__').replace('|', '__')
+
+    meshDict = createSceneElement(elementType = 'curves')
+    meshDict.addAttribute('name', geomNodeName)
+
+    shaderDict = createSceneElement(elementType = 'shader')
+    shaderDict.addAttribute('name', "{0}_shader".format(geomNodeName))
+
+    a = createSceneElement(elementType = 'hair_bsdf')
+    a.addAttribute('name', 'mesh_closure')
+    shaderDict.addChild(a)
+
+    a = createConnectionElement("mesh_closure bsdf", "output surface")
+    shaderDict.addChild(a)
+
+    node = pymel.core.PyNode(geom)
+    hairs = node.getAttr("outputHair")
+
+    radius = node.getAttr("hairWidth")
+    meshDict.addAttribute('radius', str(radius))
+
+    xformDict = getTransformDict(node.parent(0), ident_mtx)
+
+    points = list()
+    nverts = list()
+    for hair in hairs:
+        for pnt in hair:
+            points.append((pnt[0], pnt[1], pnt[2]))
+        nverts.append(len(hair))
+
+    points = "{0}".format(" ".join(map(lambda w: "%g %g %g" % (w[0], w[1], w[2]), points)))
+    meshDict.addAttribute('P', points )
+    nverts_str = "{0}".format(" ".join(map(lambda x: str(x), nverts)))
+    meshDict.addAttribute('nverts', nverts_str)
+
+    stateDict = createSceneElement(elementType = 'state')
+    stateDict.addAttribute('shader', "{0}_shader".format(geomNodeName))
+    stateDict.addAttribute('interpolation', 'smooth')
+    stateDict.addChild(meshDict)
+
+    xformDict.addChild(stateDict)
+
+    return [shaderDict, xformDict]
+
 def writeShape(geomFilename, surfaceShader, mediumShader, renderDir):
     shapeDict = ShapeElement('obj')
 
@@ -2496,7 +2791,7 @@ def writeShape(geomFilename, surfaceShader, mediumShader, renderDir):
 
     # Write medium shader reference
     if mediumShader and cmds.nodeType(mediumShader) in materialNodeTypes:
-        if cmds.nodeType(mediumShader) == "MitsubaSSSDipoleShader":
+        if cmds.nodeType(mediumShader) == "CyclesSSSDipoleShader":
             refDict = RefElement()
             refDict.addAttribute('id', mediumShader)
         else:
@@ -2509,7 +2804,7 @@ def writeShape(geomFilename, surfaceShader, mediumShader, renderDir):
     # Write surface shader reference
     if surfaceShader and cmds.nodeType(surfaceShader) in materialNodeTypes:
         # Check for area lights
-        if cmds.nodeType(surfaceShader) == "MitsubaObjectAreaLightShader":
+        if cmds.nodeType(surfaceShader) == "CyclesObjectAreaLightShader":
             shaderElement = writeShaderObjectAreaLight(surfaceShader, surfaceShader)
             shapeDict.addChild( shaderElement )
 
@@ -2533,18 +2828,28 @@ def writeGeometryAndMaterials(renderDir):
 
     #Write each piece of geometry with references to materials
     for geom in geoms:
-        #print( "writeGeometryAndMaterials - geometry : %s" % geom )
-        surfaceShader = getSurfaceShader(geom)
-        volumeShader  = getVolumeShader(geom)
+        print( "writeGeometryAndMaterials - geometry : %s" % geom )
+        rels = cmds.listRelatives(geom, fullPath=True)
+        for rel in rels:
+            nt = cmds.nodeType(rel)
+            if nt=="mesh":
+                surfaceShader = getSurfaceShader(geom)
+                volumeShader  = getVolumeShader(geom)
 
-        #print( "\tsurface : %s" % surfaceShader )
-        #print( "\tvolume  : %s" % volumeShader )
+                print( "\tsurface : %s" % surfaceShader )
+                print( "\tvolume  : %s" % volumeShader )
 
-        geomFilename = exportGeometry(geom, renderDir)
-        geoFiles.append(geomFilename)
+                meshDicts = exportGeometryCycles(geom, renderDir)
+                shapeElements.extend(meshDicts)
 
-        shapeElement = writeShape(geomFilename, surfaceShader, volumeShader, renderDir)
-        shapeElements.append(shapeElement)
+                #geomFilename = exportGeometry(geom, renderDir)
+                #geoFiles.append(geomFilename)
+
+                #shapeElement = writeShape(geomFilename, surfaceShader, volumeShader, renderDir)
+                #shapeElements.append(shapeElement)
+            elif nt=="hairSystem":
+                curveDicts = exportHairCycles(geom, renderDir)
+                shapeElements.extend(curveDicts)
 
     return (geoFiles, shapeElements, materialElements)
 
@@ -2552,18 +2857,18 @@ def writeScene(outFileName, renderDir, renderSettings):
     #
     # Generate scene element hierarchy
     #
-    sceneElement = createSceneElement()
+    sceneElement = createSceneElement(elementType = 'cycles')
 
     # Should make this query the binary...
     sceneElement.addAttribute('version', '0.5.0')
 
     # Get integrator
-    integratorElement = writeIntegrator(renderSettings)
-    sceneElement.addChild( integratorElement)
+    # integratorElement = writeIntegrator(renderSettings)
+    # sceneElement.addChild( integratorElement)
 
     # Get sensor : camera, sampler, and film
     frameNumber = int(cmds.currentTime(query=True))
-    sensorElement = writeSensor(frameNumber, renderSettings)
+    sensorElement = writeSensorCycles(frameNumber, renderSettings)
     sceneElement.addChild( sensorElement)
 
     # Get lights
@@ -2579,12 +2884,18 @@ def writeScene(outFileName, renderDir, renderSettings):
     if shapeElements:
         sceneElement.addChildren( shapeElements )
 
+    bgDict = writeBackgroundCycles()
+    sceneElement.addChild(bgDict)
+
     #
     # Write the structure to disk
     #
-    with open(outFileName, 'w+') as outFile:
-        outFile.write("<?xml version=\'1.0\' encoding=\'utf-8\'?>\n")
-        writeElement(outFile, sceneElement)
+    try:
+        with open(outFileName, 'w+') as outFile:
+            outFile.write("<?xml version=\'1.0\' encoding=\'utf-8\'?>\n")
+            writeElement(outFile, sceneElement)
+    except Exception, e:
+        print 'WHOOPS', e
 
     return exportedGeometryFiles
 

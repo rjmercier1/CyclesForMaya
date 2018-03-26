@@ -5,7 +5,7 @@ import maya.cmds as cmds
 
 kPluginNodeName = "MitsubaMaskShader"
 kPluginNodeClassify = "/shader/surface"
-kPluginNodeId = OpenMaya.MTypeId(0x87035)
+kPluginNodeId = OpenMaya.MTypeId(0x87012)
 
 class mask(OpenMayaMPx.MPxNode):
     def __init__(self):

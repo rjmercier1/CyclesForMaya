@@ -8,7 +8,7 @@ import maya.mel as mel
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
 
-kPluginCmdName = "Mitsuba"
+kPluginCmdName = "Cycles"
 
 pluginDir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 sys.path.append(pluginDir)
@@ -19,7 +19,7 @@ sys.path.append(os.path.abspath(
 from process import Process
 
 # Import modules for settings, material, lights and volumes
-import MitsubaRenderSettings
+import CyclesRenderSettings
 
 global renderSettings
 renderSettings = None
@@ -28,26 +28,26 @@ renderSettings = None
 #
 # IO
 #
-import MitsubaRendererIO
+import CyclesRendererIO
 
 #
 # Utility functions
 #
 def registMaterialNodeType(materialNodeType):
-    MitsubaRendererIO.materialNodeTypes.append(materialNodeType)
+    CyclesRendererIO.materialNodeTypes.append(materialNodeType)
 
 def createRenderSettingsNode():
     global renderSettings
-    print( "\n\n\nMitsuba Render Settings - Create Node - Python\n\n\n" )
+    print( "\n\n\nCycles Render Settings - Create Node - Python\n\n\n" )
 
-    existingSettings = cmds.ls(type='MitsubaRenderSettings')
+    existingSettings = cmds.ls(type='CyclesRenderSettings')
     if existingSettings != []:
         # Just use the first one?
         renderSettings = existingSettings[0]
-        print( "Using existing Mitsuba settings node : %s" % renderSettings)
+        print( "Using existing Cycles settings node : %s" % renderSettings)
     else:
-        renderSettings = cmds.createNode('MitsubaRenderSettings', name='defaultMitsubaRenderGlobals', shared=True)
-        print( "Creating new Mitsuba settings node : %s" % renderSettings)
+        renderSettings = cmds.createNode('CyclesRenderSettings', name='defaultCyclesRenderGlobals', shared=True)
+        print( "Creating new Cycles settings node : %s" % renderSettings)
 
 def getRenderSettingsNode():
     global renderSettings
@@ -55,7 +55,7 @@ def getRenderSettingsNode():
 
 def updateRenderSettings():
     global renderSettings
-    print( "\n\n\nMitsuba Render Settings - Update - Python\n\n\n" )
+    print( "\n\n\nCycles Render Settings - Update - Python\n\n\n" )
 
 def getImageExtension(renderSettings):
     filmType = cmds.getAttr( "%s.film" % renderSettings )
@@ -119,7 +119,7 @@ def getImageExtension(renderSettings):
 #
 # UI
 #
-import MitsubaRendererUI
+import CyclesRendererUI
 
 #
 # Renderer functions
@@ -133,7 +133,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
     # Invoked when the command is run.
     def doIt(self,argList):
         global renderSettings
-        print "Rendering with Mitsuba..."
+        print "Rendering with Cycles..."
 
         # Create a render settings node
         createRenderSettingsNode()
@@ -160,7 +160,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
         keepTempFiles = cmds.getAttr("%s.%s" % (renderSettings, "keepTempFiles"))
         verbose = cmds.getAttr("%s.%s" % (renderSettings, "verbose"))
 
-        print( "Render Settings - Mitsuba Path     : %s" % mitsubaPath )
+        print( "Render Settings - Cycles Path     : %s" % mitsubaPath )
         print( "Render Settings - Integrator       : %s" % integrator )
         print( "Render Settings - Sampler          : %s" % sampler )
         print( "Render Settings - Sample Count     : %s" % sampleCount )
@@ -198,7 +198,8 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
 
             # Display the render
             if not cmds.about(batch=True):
-                MitsubaRendererUI.showRender(imageName)
+                pass
+                #CyclesRendererUI.showRender(imageName)
 
         # Select the objects that the user had selected before they rendered, or clear the selection
         if len(userSelection) > 0:
@@ -324,23 +325,33 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
             imageName,
             outFileName])
 
+        imageWidth = cmds.getAttr("defaultResolution.width")
+        imageHeight = cmds.getAttr("defaultResolution.height")
+        args.extend(['--width', imageWidth])
+        args.extend(['--height', imageHeight])
+        args = ['--output', imageName]
+        args.extend([outFileName])
+
         if ' ' in mtsDir:
             env = {"LD_LIBRARY_PATH":str("\"%s\"" % mtsDir)}
         else:
             env = {"LD_LIBRARY_PATH":str(mtsDir)}
 
+        env.update({"DISPLAY": os.environ.get("DISPLAY", ":0.0")})
+        env.update({"PATH": os.environ.get("PATH")})
+
         mitsubaRender = Process(description='render an image',
             cmd=mitsubaPath,
             args=args,
-            env=env)
+            env=env, non_blocking = True)
 
         def renderLogCallback(line):
             if "Writing image" in line:
                 imageName = line.split("\"")[-2]
 
                 # Display the render
-                if not cmds.about(batch=True):
-                    MitsubaRendererUI.showRender(imageName)
+                #if not cmds.about(batch=True):
+                #    CyclesRendererUI.showRender(imageName)
 
         mitsubaRender.log_callback = renderLogCallback
         #mitsubaRender.echo = False
@@ -397,7 +408,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
         outFileName = os.path.join(renderDir, "%s.xml" % scenePrefix)
 
         # Export scene and geometry
-        geometryFiles = MitsubaRendererIO.writeScene(outFileName, renderDir, renderSettings)
+        geometryFiles = CyclesRendererIO.writeScene(outFileName, renderDir, renderSettings)
 
         # Render scene, delete scene and geometry
         imageName = self.renderScene(outFileName, renderDir, mitsubaPath, oiiotoolPath,
@@ -412,7 +423,7 @@ def batchRenderProcedure(options):
     '''
     kwargs = {}
     try:
-        cmds.batchRender(mc='Mitsuba')
+        cmds.batchRender(mc='Cycles')
     except RuntimeError, err:
         print err
     '''
@@ -433,7 +444,7 @@ def commandRenderProcedure(options):
 
     kwargs = {}
     try:
-        cmds.Mitsuba(batch=True, **kwargs)
+        cmds.Cycles(batch=True, **kwargs)
     except RuntimeError, err:
         print err
 
@@ -465,35 +476,35 @@ def createMelPythonCallback(module, function, options=False):
 
 # Register Renderer
 def registerRenderer():
-    cmds.renderer("Mitsuba", rendererUIName=kPluginCmdName)
-    cmds.renderer("Mitsuba", edit=True, renderProcedure=kPluginCmdName)
+    cmds.renderer("Cycles", rendererUIName=kPluginCmdName)
+    cmds.renderer("Cycles", edit=True, renderProcedure=kPluginCmdName)
 
-    batchRenderProcedureMel = createMelPythonCallback("MitsubaRenderer", "batchRenderProcedure", True)
-    cmds.renderer("Mitsuba", edit=True, batchRenderProcedure=batchRenderProcedureMel)
+    batchRenderProcedureMel = createMelPythonCallback("CyclesRenderer", "batchRenderProcedure", True)
+    cmds.renderer("Cycles", edit=True, batchRenderProcedure=batchRenderProcedureMel)
 
-    commandRenderProcedureMel = createMelPythonCallback("MitsubaRenderer", "commandRenderProcedure", True)
-    cmds.renderer("Mitsuba", edit=True, commandRenderProcedure=commandRenderProcedureMel)
+    commandRenderProcedureMel = createMelPythonCallback("CyclesRenderer", "commandRenderProcedure", True)
+    cmds.renderer("Cycles", edit=True, commandRenderProcedure=commandRenderProcedureMel)
 
-    batchRenderOptionsProcedureMel = createMelPythonCallback("MitsubaRenderer", "batchRenderOptionsProcedure")
-    cmds.renderer("Mitsuba", edit=True, batchRenderOptionsProcedure=batchRenderOptionsProcedureMel)
+    batchRenderOptionsProcedureMel = createMelPythonCallback("CyclesRenderer", "batchRenderOptionsProcedure")
+    cmds.renderer("Cycles", edit=True, batchRenderOptionsProcedure=batchRenderOptionsProcedureMel)
 
-    batchRenderOptionsStringProcedureMel = createMelPythonCallback("MitsubaRenderer", "batchRenderOptionsStringProcedure")
-    cmds.renderer("Mitsuba", edit=True, batchRenderOptionsStringProcedure=batchRenderOptionsStringProcedureMel)
+    batchRenderOptionsStringProcedureMel = createMelPythonCallback("CyclesRenderer", "batchRenderOptionsStringProcedure")
+    cmds.renderer("Cycles", edit=True, batchRenderOptionsStringProcedure=batchRenderOptionsStringProcedureMel)
 
-    cancelBatchRenderProcedureMel = createMelPythonCallback("MitsubaRenderer", "cancelBatchRenderProcedure")
-    cmds.renderer("Mitsuba", edit=True, cancelBatchRenderProcedure=cancelBatchRenderProcedureMel)
+    cancelBatchRenderProcedureMel = createMelPythonCallback("CyclesRenderer", "cancelBatchRenderProcedure")
+    cmds.renderer("Cycles", edit=True, cancelBatchRenderProcedure=cancelBatchRenderProcedureMel)
 
-    cmds.renderer("Mitsuba", edit=True, renderRegionProcedure="mayaRenderRegion" )
+    cmds.renderer("Cycles", edit=True, renderRegionProcedure="mayaRenderRegion" )
 
-    cmds.renderer("Mitsuba", edit=True, addGlobalsTab=("Common", 
+    cmds.renderer("Cycles", edit=True, addGlobalsTab=("Common", 
         "createMayaSoftwareCommonGlobalsTab", 
         "updateMayaSoftwareCommonGlobalsTab"))
 
-    cmds.renderer("Mitsuba", edit=True, addGlobalsTab=("Mitsuba Common", 
-        createMelPythonCallback("MitsubaRendererUI", "createRenderSettings"),
-        createMelPythonCallback("MitsubaRenderer", "updateRenderSettings")))
+    cmds.renderer("Cycles", edit=True, addGlobalsTab=("Cycles Common", 
+        createMelPythonCallback("CyclesRendererUI", "createRenderSettings"),
+        createMelPythonCallback("CyclesRenderer", "updateRenderSettings")))
 
-    cmds.renderer("Mitsuba", edit=True, addGlobalsNode="defaultMitsubaRenderGlobals" )
+    cmds.renderer("Cycles", edit=True, addGlobalsNode="defaultCyclesRenderGlobals" )
 
 
 # Initialize the script plug-in
@@ -509,7 +520,7 @@ def initializePlugin(mobject):
             raise
 
     try:
-        # Register Mitsuba Renderer
+        # Register Cycles Renderer
         mplugin.registerCommand( kPluginCmdName, cmdCreator )
     except:
         sys.stderr.write( "Failed to register command: %s\n" % kPluginCmdName )
@@ -528,7 +539,7 @@ def uninitializePlugin(mobject):
 
     mplugin = OpenMayaMPx.MFnPlugin(mobject)
     try:
-        cmds.renderer("Mitsuba", edit=True, unregisterRenderer=True)
+        cmds.renderer("Cycles", edit=True, unregisterRenderer=True)
     except:
         sys.stderr.write( "Failed to unregister renderer: %s\n" % kPluginCmdName )
 

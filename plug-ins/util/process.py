@@ -464,7 +464,7 @@ class Process:
             # Using *subprocess*.
             if sp:
                 if self.batch_wrapper:
-                    #print( "\nUsing subprocess with a batch wrapper\n" )
+                    print( "\nUsing subprocess with a batch wrapper\n" )
                     cmd = ' '.join(cmdargs)
                     self._tmp_wrapper = os.path.join(self.cwd, 'process.bat')
                     write_text(cmd, self._tmp_wrapper)
@@ -474,7 +474,7 @@ class Process:
                                        stderr=sp.STDOUT,
                                        cwd=self.cwd, env=self.env)
                 else:
-                    #print( "\nUsing standard subprocess Popen\n" )
+                    print( "\nUsing standard subprocess Popen\n", cmdargs )
                     process = sp.Popen(cmdargs, stdout=sp.PIPE,
                                        stderr=sp.STDOUT,
                                        cwd=self.cwd, env=self.env)

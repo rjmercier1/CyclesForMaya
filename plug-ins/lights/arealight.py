@@ -2,7 +2,7 @@ import sys
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
 
-kPluginNodeName = "MitsubaObjectAreaLightShader"
+kPluginNodeName = "CyclesObjectAreaLightShader"
 kPluginNodeClassify = "shader/surface"
 kPluginNodeId = OpenMaya.MTypeId(0x87024)
 

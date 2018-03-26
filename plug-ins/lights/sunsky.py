@@ -2,7 +2,7 @@ import sys
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
 
-kPluginNodeName = "MitsubaSunsky"
+kPluginNodeName = "CyclesSunsky"
 kPluginNodeClassify = "light/general"
 kPluginNodeId = OpenMaya.MTypeId(0x87031)
 

@@ -3,7 +3,7 @@ import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
 import maya.cmds as cmds
 
-kPluginNodeName = "MitsubaPhongShader"
+kPluginNodeName = "CyclesPhongShader"
 kPluginNodeClassify = "/shader/surface"
 kPluginNodeId = OpenMaya.MTypeId(0x8700B)
 

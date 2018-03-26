@@ -26,9 +26,9 @@
         "t" the parameter types, used in help description.
         "h" the help description.
 -->
-<renderer desc="Mitsuba renderer">
-    <melheader s='string $opt=""; string $rl=""; string $rp=""; float $resize=-1.; loadPlugin -quiet MitsubaForMaya;'/>
-    <meltrailer s='setMayaSoftwareLayers($rl, $rp); setImageSizePercent($resize);mayaBatchRenderProcedure(0, "", "", "Mitsuba", $opt); '/>
+<renderer desc="Cycles renderer">
+    <melheader s='string $opt=""; string $rl=""; string $rp=""; float $resize=-1.; loadPlugin -quiet CyclesForMaya;'/>
+    <meltrailer s='setMayaSoftwareLayers($rl, $rp); setImageSizePercent($resize);mayaBatchRenderProcedure(0, "", "", "Cycles", $opt); '/>
     <sep/>
     <!-- ______________________________________________________________ -->
     <sep desc="General purpose flags:"/>
@@ -68,8 +68,8 @@
     <!-- Generic options above -->
     <!-- ______________________________________________________________ -->
     <sep desc="Path options"/>
-    <attrString n="mfm:mp" s="defaultMitsubaRenderGlobals.mitsubaPath" t="string" h="Mitsuba path."/>
-    <attr n="mfm:sc" s="defaultMitsubaRenderGlobals.sampleCount" t="int" h="Set sample count for the image sampler"/>
+    <attrString n="mfm:mp" s="defaultCyclesRenderGlobals.cyclesPath" t="string" h="Cycles path."/>
+    <attr n="mfm:sc" s="defaultCyclesGlobals.sampleCount" t="int" h="Set sample count for the image sampler"/>
     <sep/>
     <!-- ______________________________________________________________ -->
     <!-- Generic options below -->
