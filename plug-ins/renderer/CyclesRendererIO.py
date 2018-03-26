@@ -2741,8 +2741,8 @@ def exportGeometryCycles(geom, renderDir):
 def exportHairCycles(geom, renderDir):
     geomNodeName = geom.replace(':', '__').replace('|', '__')
 
-    meshDict = createSceneElement(elementType = 'curves')
-    meshDict.addAttribute('name', geomNodeName)
+    curvesDict = createSceneElement(elementType = 'curves')
+    curvesDict.addAttribute('name', geomNodeName)
 
     shaderDict = createSceneElement(elementType = 'shader')
     shaderDict.addAttribute('name', "{0}_shader".format(geomNodeName))
@@ -2758,7 +2758,7 @@ def exportHairCycles(geom, renderDir):
     hairs = node.getAttr("outputHair")
 
     radius = node.getAttr("hairWidth")
-    meshDict.addAttribute('radius', str(radius))
+    curvesDict.addAttribute('radius', str(radius))
 
     xformDict = getTransformDict(node.parent(0), ident_mtx)
 
@@ -2770,14 +2770,15 @@ def exportHairCycles(geom, renderDir):
         nverts.append(len(hair))
 
     points = "{0}".format(" ".join(map(lambda w: "%g %g %g" % (w[0], w[1], w[2]), points)))
-    meshDict.addAttribute('P', points )
+    curvesDict.addAttribute('P', points )
     nverts_str = "{0}".format(" ".join(map(lambda x: str(x), nverts)))
-    meshDict.addAttribute('nverts', nverts_str)
+    curvesDict.addAttribute('nverts', nverts_str)
 
     stateDict = createSceneElement(elementType = 'state')
     stateDict.addAttribute('shader', "{0}_shader".format(geomNodeName))
     stateDict.addAttribute('interpolation', 'smooth')
-    stateDict.addChild(meshDict)
+    stateDict.addAttribute('curve_primitive', 'segments')
+    stateDict.addChild(curvesDict)
 
     xformDict.addChild(stateDict)
 

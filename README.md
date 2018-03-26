@@ -8,13 +8,13 @@ Usage
 -
 
 - Load from the download location using Python command
-	- cmds.loadPlugin( "/path/where/you/downloaded/CyclesForMatya.py" )
+	- cmds.loadPlugin( "/path/where/you/downloaded/CyclesForMaya.py" )
 
 - Unload as appropriate
 	- cmds.unloadPlugin( "CyclesForMatya.py" )
 
 - ***VERY IMPORTANT*** 
-- The first field in the Render Settings Mituba tab is the path to the 'cycles' binary. You must set this to be able to render. The setting can be specified using the CYCLES_PATH environment variable, as described below, or manually from the Render Settings UI. The path will be retained in a file's Render Settings so the value only has to be specified the first time you use a scene.
+- The first field in the Render Settings Cycles tab is the path to the 'cycles' binary. You must set this to be able to render. The setting can be specified using the CYCLES_PATH environment variable, as described below, or manually from the Render Settings UI. The path will be retained in a file's Render Settings so the value only has to be specified the first time you use a scene.
 
 
 Cycles renderer
