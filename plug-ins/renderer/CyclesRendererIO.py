@@ -294,41 +294,41 @@ def TextureElement(name, texturePath, scale=None):
     textureElementDict.addAttribute('name', name)
     return textureElementDict
 
-def TexturedColorAttributeElement(material, attribute, mitsubaParameter=None, colorspace='srgb', scale=None):
-    if not mitsubaParameter:
-        mitsubaParameter = attribute
+def TexturedColorAttributeElement(material, attribute, cyclesParameter=None, colorspace='srgb', scale=None):
+    if not cyclesParameter:
+        cyclesParameter = attribute
     fileTexture = getTextureFile(material, attribute)
     if fileTexture:
-        element = TextureElement(mitsubaParameter, fileTexture, scale)
+        element = TextureElement(cyclesParameter, fileTexture, scale)
     else:
         value = cmds.getAttr(material + "." + attribute)
-        element = ColorParameter(mitsubaParameter, value[0], colorspace )
+        element = ColorParameter(cyclesParameter, value[0], colorspace )
 
     return element
 
-def TexturedFloatAttributeElement(material, attribute, mitsubaParameter=None, scale=None):
-    if not mitsubaParameter:
-        mitsubaParameter = attribute
+def TexturedFloatAttributeElement(material, attribute, cyclesParameter=None, scale=None):
+    if not cyclesParameter:
+        cyclesParameter = attribute
     fileTexture = getTextureFile(material, attribute)
     if fileTexture:
-        element = TextureElement(mitsubaParameter, fileTexture, scale)
+        element = TextureElement(cyclesParameter, fileTexture, scale)
     else:
         value = cmds.getAttr(material + "." + attribute)
-        element = FloatParameter(mitsubaParameter, value )
+        element = FloatParameter(cyclesParameter, value )
 
     return element
 
-def TexturedVolumeAttributeElement(material, attribute, mitsubaParameter=None):
-    if not mitsubaParameter:
-        mitsubaParameter = attribute
+def TexturedVolumeAttributeElement(material, attribute, cyclesParameter=None):
+    if not cyclesParameter:
+        cyclesParameter = attribute
     fileTexture = getTextureFile(material, attribute)
     if fileTexture:
-        element = VolumeElement(mitsubaParameter, fileTexture)
+        element = VolumeElement(cyclesParameter, fileTexture)
     else:
         value = cmds.getAttr(material + "." + attribute)
         element = SpectrumParameter('value', value)
 
-        volumeWrapperElement = VolumeElement(mitsubaParameter, typeAttribute='constvolume')
+        volumeWrapperElement = VolumeElement(cyclesParameter, typeAttribute='constvolume')
         volumeWrapperElement.addChild( element )
         element = volumeWrapperElement
 

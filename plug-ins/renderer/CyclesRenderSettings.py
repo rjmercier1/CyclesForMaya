@@ -279,11 +279,11 @@ def nodeInitializer():
     nAttr = OpenMaya.MFnNumericAttribute()
 
     try:
-        # Path to mitsuba executable
+        # Path to cycles executable
         defaultCyclesPath = os.getenv( "MITSUBA_PATH" )
         if not defaultCyclesPath:
             defaultCyclesPath = "cycles"
-        CyclesRenderSetting.addStringAttribute(sAttr, "mCyclesPath", "mitsubaPath", "mp", defaultCyclesPath)
+        CyclesRenderSetting.addStringAttribute(sAttr, "mCyclesPath", "cyclesPath", "mp", defaultCyclesPath)
 
         # Path to oiiotool executable
         defaultOIIOToolPath = os.getenv( "OIIOTOOL_PATH" )

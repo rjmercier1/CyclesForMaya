@@ -1057,18 +1057,18 @@ def createRenderSettingsUI():
 
     parentForm = cmds.setParent(query=True)
 
-    mitsubaGlobalsScrollLayout = cmds.scrollLayout(horizontalScrollBarThickness=0)
+    cyclesGlobalsScrollLayout = cmds.scrollLayout(horizontalScrollBarThickness=0)
     cmds.columnLayout(adjustableColumn=True)
 
     # Path to executable
-    mitsubaPathGroup = cmds.textFieldButtonGrp(label="Cycles Path", 
+    cyclesPathGroup = cmds.textFieldButtonGrp(label="Cycles Path", 
         buttonLabel="Open", buttonCommand="browseFiles")
     # Get default
-    existingCyclesPath = cmds.getAttr( "%s.%s" % (renderSettings, "mitsubaPath"))
+    existingCyclesPath = cmds.getAttr( "%s.%s" % (renderSettings, "cyclesPath"))
     if existingCyclesPath not in ["", None]:
-        cmds.textFieldButtonGrp(mitsubaPathGroup, e=1, text=existingCyclesPath)
-    cmds.textFieldButtonGrp(mitsubaPathGroup, e=1, 
-        buttonCommand=lambda: getRenderSettingsPath(mitsubaPathGroup, "mitsubaPath"))
+        cmds.textFieldButtonGrp(cyclesPathGroup, e=1, text=existingCyclesPath)
+    cmds.textFieldButtonGrp(cyclesPathGroup, e=1, 
+        buttonCommand=lambda: getRenderSettingsPath(cyclesPathGroup, "cyclesPath"))
 
     # Path to executable
     oiiotoolPathGroup = cmds.textFieldButtonGrp(label="oiiotool Path", 
@@ -1342,10 +1342,10 @@ def createRenderSettingsUI():
 
 
     af = []
-    af.append((mitsubaGlobalsScrollLayout, 'top', 0))
-    af.append((mitsubaGlobalsScrollLayout, 'bottom', 0))
-    af.append((mitsubaGlobalsScrollLayout, 'left', 0))
-    af.append((mitsubaGlobalsScrollLayout, 'right', 0))
+    af.append((cyclesGlobalsScrollLayout, 'top', 0))
+    af.append((cyclesGlobalsScrollLayout, 'bottom', 0))
+    af.append((cyclesGlobalsScrollLayout, 'left', 0))
+    af.append((cyclesGlobalsScrollLayout, 'right', 0))
     cmds.formLayout(parentForm, edit=True, attachForm=af)
 
 
@@ -1394,7 +1394,7 @@ def showRenderWindow(filename):
 
 #Mel command to render with Cycles
 def callCycles(self):
-    cmds.mitsuba()
+    cmds.cycles()
 
 '''
 Since we have a number of integrators that each have a number of properties,

@@ -126,7 +126,7 @@ import CyclesRendererUI
 #
 
 # A command to render with Maya
-class mitsubaForMaya(OpenMayaMPx.MPxCommand):
+class cyclesForMaya(OpenMayaMPx.MPxCommand):
     def __init__(self):
         OpenMayaMPx.MPxCommand.__init__(self)
 
@@ -150,9 +150,9 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
         version = cmds.about(v=True).replace(" ", "-")
 
         # Get render settings
-        mitsubaPath = cmds.getAttr("%s.%s" % (renderSettings, "mitsubaPath"))
+        cyclesPath = cmds.getAttr("%s.%s" % (renderSettings, "cyclesPath"))
         oiiotoolPath = cmds.getAttr("%s.%s" % (renderSettings, "oiiotoolPath"))
-        mtsDir = os.path.split(mitsubaPath)[0]
+        mtsDir = os.path.split(cyclesPath)[0]
         integrator = cmds.getAttr("%s.%s" % (renderSettings, "integrator"))
         sampler = cmds.getAttr("%s.%s" % (renderSettings, "sampler"))
         sampleCount = cmds.getAttr("%s.%s" % (renderSettings, "sampleCount"))
@@ -160,7 +160,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
         keepTempFiles = cmds.getAttr("%s.%s" % (renderSettings, "keepTempFiles"))
         verbose = cmds.getAttr("%s.%s" % (renderSettings, "verbose"))
 
-        print( "Render Settings - Cycles Path     : %s" % mitsubaPath )
+        print( "Render Settings - Cycles Path     : %s" % cyclesPath )
         print( "Render Settings - Integrator       : %s" % integrator )
         print( "Render Settings - Sampler          : %s" % sampler )
         print( "Render Settings - Sample Count     : %s" % sampleCount )
@@ -168,7 +168,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
         print( "Render Settings - Keep Temp Files  : %s" % keepTempFiles )
         print( "Render Settings - Verbose          : %s" % verbose )
         print( "Render Settings - Render Dir       : %s" % renderDir )
-        print( "Render Settings - oiiotool Path    : %s" % mitsubaPath )
+        print( "Render Settings - oiiotool Path    : %s" % cyclesPath )
 
         animation = self.isAnimation()
         print( "Render Settings - Animation        : %s" % animation )
@@ -184,7 +184,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
             for frame in range(startFrame, endFrame+1, byFrame):
                 print( "Rendering frame " + str(frame) + " - begin" )
 
-                self.exportAndRender(renderDir, renderSettings, mitsubaPath, oiiotoolPath,
+                self.exportAndRender(renderDir, renderSettings, cyclesPath, oiiotoolPath,
                     mtsDir, keepTempFiles, animation, frame, verbose)
 
                 print( "Rendering frame " + str(frame) + " - end" )
@@ -193,7 +193,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
 
         # Single frame
         else:
-            imageName = self.exportAndRender(renderDir, renderSettings, mitsubaPath, oiiotoolPath,
+            imageName = self.exportAndRender(renderDir, renderSettings, cyclesPath, oiiotoolPath,
                 mtsDir, keepTempFiles, animation, None, verbose)
 
             # Display the render
@@ -268,7 +268,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
     def renderScene(self,
                     outFileName, 
                     renderDir, 
-                    mitsubaPath,
+                    cyclesPath,
                     oiiotoolPath, 
                     mtsDir, 
                     keepTempFiles, 
@@ -340,8 +340,8 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
         env.update({"DISPLAY": os.environ.get("DISPLAY", ":0.0")})
         env.update({"PATH": os.environ.get("PATH")})
 
-        mitsubaRender = Process(description='render an image',
-            cmd=mitsubaPath,
+        cyclesRender = Process(description='render an image',
+            cmd=cyclesPath,
             args=args,
             env=env, non_blocking = True)
 
@@ -353,13 +353,13 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
                 #if not cmds.about(batch=True):
                 #    CyclesRendererUI.showRender(imageName)
 
-        mitsubaRender.log_callback = renderLogCallback
-        #mitsubaRender.echo = False
+        cyclesRender.log_callback = renderLogCallback
+        #cyclesRender.echo = False
 
-        mitsubaRender.execute()
-        mitsubaRender.write_log_to_disk(logName, format='txt')
+        cyclesRender.execute()
+        cyclesRender.write_log_to_disk(logName, format='txt')
 
-        print( "Render execution returned : %s" % mitsubaRender.status )
+        print( "Render execution returned : %s" % cyclesRender.status )
 
         if oiiotoolPath != "":
             self.resetImageDataWindow(imageName, oiiotoolPath)
@@ -373,7 +373,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
                     os.remove(geometryFile)
                 except:
                     print( "Error removing temporary file : %s" % geometryFile )
-            #print( "Removing mitsuba scene description : %s" % outFileName )
+            #print( "Removing cycles scene description : %s" % outFileName )
             os.remove(outFileName)
             #os.remove(logName)
         else:
@@ -384,7 +384,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
     def exportAndRender(self,
                         renderDir,
                         renderSettings,
-                        mitsubaPath,
+                        cyclesPath,
                         oiiotoolPath,
                         mtsDir, 
                         keepTempFiles,  
@@ -411,7 +411,7 @@ class mitsubaForMaya(OpenMayaMPx.MPxCommand):
         geometryFiles = CyclesRendererIO.writeScene(outFileName, renderDir, renderSettings)
 
         # Render scene, delete scene and geometry
-        imageName = self.renderScene(outFileName, renderDir, mitsubaPath, oiiotoolPath,
+        imageName = self.renderScene(outFileName, renderDir, cyclesPath, oiiotoolPath,
             mtsDir, keepTempFiles, geometryFiles, animation, frame, verbose,
             renderSettings)
 
@@ -450,7 +450,7 @@ def commandRenderProcedure(options):
 
 # Creator
 def cmdCreator():
-    return OpenMayaMPx.asMPxPtr( mitsubaForMaya() )
+    return OpenMayaMPx.asMPxPtr( cyclesForMaya() )
 
 def createMelPythonCallback(module, function, options=False):
     # Return value for python mel command is documented as string[] but seems to return
