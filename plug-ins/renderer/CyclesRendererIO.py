@@ -2387,7 +2387,7 @@ def writeLightArea(light):
 
     xform = pymel.core.datatypes.Matrix(lightNode.parent(0).getTransformation())
     co = pymel.core.datatypes.Point([0,0,0]) * xform
-    dir = pymel.core.datatypes.Vector([0,0,-1]).rotateBy(xform)
+    dir = pymel.core.datatypes.Vector([0,0,1]).rotateBy(xform)
 
     axisu = pymel.core.datatypes.Vector([1,0,0]) * xform
     axisv = pymel.core.datatypes.Vector([0,1,0]) * xform
